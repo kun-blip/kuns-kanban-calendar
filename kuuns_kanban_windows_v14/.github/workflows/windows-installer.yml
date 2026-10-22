@@ -1,0 +1,46 @@
+name: Publish Windows app update
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+permissions:
+  contents: write
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify repository and tag
+        shell: pwsh
+        run: |
+          $p = Get-Content package.json -Raw | ConvertFrom-Json
+          if ($p.build.publish.provider -ne 'github' -or !$p.build.publish.owner -or !$p.build.publish.repo) { throw 'Run CONFIGURE_GITHUB.bat before pushing this project.' }
+          $expected = "v$($p.version)"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne $expected) { throw "Git tag $env:GITHUB_REF_NAME does not match $expected" }
+          if ($p.build.publish.owner -ne $env:GITHUB_REPOSITORY_OWNER) { throw 'GitHub owner mismatch with package.json' }
+          $repo = $env:GITHUB_REPOSITORY.Split('/')[1]
+          if ($p.build.publish.repo -ne $repo) { throw 'GitHub repository mismatch with package.json' }
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test local data, calendar, and update config
+        run: npm test
+      - name: Build installer for manual test
+        if: github.event_name == 'workflow_dispatch'
+        run: npm run build:win
+      - name: Build and publish Windows NSIS + latest.yml to Releases
+        if: github.ref_type == 'tag'
+        run: npm run publish:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload installer as workflow artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KunsKanbanCalendar-Windows
+          path: dist/*
+          if-no-files-found: error

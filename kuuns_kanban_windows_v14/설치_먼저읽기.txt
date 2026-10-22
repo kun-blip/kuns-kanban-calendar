@@ -1,0 +1,6 @@
+KUN'S KANBAN CALENDAR v1.6.0 — GitHub 자동 업데이트 기능 도입
+
+1. README_GITHUB_AUTO_UPDATE.md를 먼저 읽어 주세요.
+2. GitHub 저장소 생성 + CONFIGURE_GITHUB.bat 실행 후 빌드해야 합니다.
+3. BUILD_WINDOWS_APP.bat은 앱 설치파일 생성용입니다. GitHub Releases 배포는 Actions에서 태그 v1.6.0 푸시로 실행됩니다.
+4. 설치 전 JSON 백업을 권장합니다.

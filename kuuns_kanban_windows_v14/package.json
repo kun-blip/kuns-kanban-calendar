@@ -1,0 +1,70 @@
+{
+  "name": "kuuns-kanban-calendar",
+  "productName": "쿤스 칸반 캘린더",
+  "version": "1.6.0",
+  "description": "로컬 저장 기반 Windows 작업 타임라인 캘린더",
+  "private": true,
+  "main": "desktop/main.cjs",
+  "author": "Local personal calendar",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "build:win": "electron-builder --win nsis --x64 --publish never",
+    "build:portable": "electron-builder --win portable --x64",
+    "configure:github": "node scripts/configure-github.cjs",
+    "publish:win": "electron-builder --win nsis --x64 --publish always"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.16.1"
+  },
+  "build": {
+    "appId": "com.kuuns.kanban.calendar",
+    "productName": "쿤스 칸반 캘린더",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**/*",
+      "renderer/**/*",
+      "assets/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "win": {
+      "icon": "assets/app.ico",
+      "artifactName": "KuunsKanbanCalendar-Setup-${version}-${arch}.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "쿤스 칸반 캘린더",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "kun-blip",
+      "repo": "kuns-kanban-calendar",
+      "releaseType": "release"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "6.8.10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kun-blip/kuns-kanban-calendar.git"
+  }
+}
