@@ -83,36 +83,41 @@ jobs:
           [IO.File]::WriteAllLines($dest, [string[]]$lines, [Text.UTF8Encoding]::new($false))
           Write-Host "Verified installer and created $dest"
 
+      
+
       - name: Publish verified assets to one tagged GitHub Release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
-          $tag = "v$($pkg.version)"
-          $repo = $env:GITHUB_REPOSITORY
-          $exeName = "KuunsKanbanCalendar-Setup-$($pkg.version)-x64.exe"
-          $installer = Join-Path 'dist' $exeName
-          $metadata = Join-Path 'dist' 'latest.yml'
-          $blockmap = "$installer.blockmap"
-          foreach ($file in @($installer, $metadata)) {
-            if (-not (Test-Path -LiteralPath $file)) { throw "Missing required release asset: $file" }
-          }
-          $null = gh release view $tag --repo $repo --json id --jq '.id' 2>$null
+          $ErrorActionPreference = 'Stop'
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tag = "v$v"
+          $exe = "dist/KuunsKanbanCalendar-Setup-$v-x64.exe"
+          $metadata = "dist/latest.yml"
+
+          if (!(Test-Path $exe)) { throw "Installer missing: $exe" }
+          if (!(Test-Path $metadata)) { throw "latest.yml missing" }
+
+          gh release view $tag -R $env:GITHUB_REPOSITORY 2>$null | Out-Null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --repo $repo --verify-tag --title $tag --notes "KUN'S KANBAN CALENDAR $tag"
-            if ($LASTEXITCODE -ne 0) { throw "Unable to create GitHub Release $tag" }
+            gh release create $tag -R $env:GITHUB_REPOSITORY --title $v --notes "Windows update $tag"
+            if ($LASTEXITCODE -ne 0) { throw "Release creation failed" }
           }
-          $assets = @($installer, $metadata)
-          if (Test-Path -LiteralPath $blockmap) { $assets += $blockmap }
-          gh release upload $tag @assets --repo $repo --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Release asset upload failed: $tag" }
-          gh release edit $tag --repo $repo --draft=false --latest
-          if ($LASTEXITCODE -ne 0) { throw "Release publication failed: $tag" }
-          $actual = @(gh release view $tag --repo $repo --json assets --jq '.assets[].name')
-          if ($LASTEXITCODE -ne 0) { throw "Cannot inspect uploaded assets: $tag" }
-          foreach ($name in @($exeName, 'latest.yml')) {
-            if ($actual -notcontains $name) {
-              throw "RELEASE INCOMPLETE: $name is missing from $tag"
-            }
+
+          $files = @($exe, $metadata)
+          if (Test-Path "$exe.blockmap") {
+            $files += "$exe.blockmap"
           }
-          Write-Host "Release $tag verified: EXE and latest.yml are in the same release."
+
+          gh release upload $tag @files --clobber -R $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw "Asset upload failed" }
+
+          $names = @(gh release view $tag -R $env:GITHUB_REPOSITORY --json assets --jq ".assets[].name")
+          if ($LASTEXITCODE -ne 0) { throw "Asset verification failed" }
+
+          if (($names -notcontains [System.IO.Path]::GetFileName($exe)) -or ($names -notcontains "latest.yml")) {
+            throw "Release is missing required update files"
+          }
+
+          Write-Host "Release $tag verified successfully"
