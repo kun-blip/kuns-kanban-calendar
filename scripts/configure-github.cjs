@@ -12,6 +12,9 @@ function configure(owner,repo){
   json.repository={type:'git',url:`https://github.com/${owner}/${repo}.git`};
   json.build.publish={provider:'github',owner,repo,releaseType:'release'};
   fs.writeFileSync(file,JSON.stringify(json,null,2)+'\n','utf8');
+  // Ship an explicit update feed alongside the runtime code. Build metadata
+  // may be removed from packaged package.json by electron-builder.
+  fs.writeFileSync(path.join(root,'desktop','release-config.json'),JSON.stringify({provider:'github',owner,repo},null,2)+'\n','utf8');
   console.log(`\nGitHub Releases 설정 완료: https://github.com/${owner}/${repo}/releases`);
   console.log('중요: 공개 GitHub 저장소를 먼저 생성해 주세요. GitHub 비밀번호/토큰은 이 파일에 저장하지 마세요.');
 }

@@ -4,7 +4,8 @@ const assert=require('node:assert/strict');
 const {EventEmitter}=require('node:events');
 const {githubProvider,createUpdateController}=require('../desktop/update-controller.cjs');
 class MockUpdater extends EventEmitter{
-  constructor(){super();this.downloadCalls=0;this.installCalls=0;this.checkCalls=0;}
+  constructor(){super();this.downloadCalls=0;this.installCalls=0;this.checkCalls=0;this.feed=null;}
+  setFeedURL(feed){this.feed=feed;}
   async checkForUpdates(){this.checkCalls++;this.emit('checking-for-update');this.emit('update-available',{version:'1.6.1'});}
   async downloadUpdate(){this.downloadCalls++;this.emit('download-progress',{percent:42.7});this.emit('update-downloaded',{version:'1.6.1'});}
   quitAndInstall(){this.installCalls++;}
@@ -51,4 +52,16 @@ test('Development build does not query update service',async()=>{
 });
 test('Bad repo name is rejected',()=>{
   assert.equal(githubProvider({build:{publish:{provider:'github',owner:'foo/bar',repo:'updates'}}}),null);
+});
+
+// Regression: electron-builder can omit build.publish from the packaged package.json.
+test('Packaged Windows executable uses bundled GitHub repo config when build.publish is absent',async()=>{
+  const cfg={provider:'github',owner:'kun-blip',repo:'kuns-kanban-calendar'};
+  assert.deepEqual(githubProvider({version:'1.6.2'},cfg),{owner:'kun-blip',repo:'kuns-kanban-calendar'});
+  const updater=new MockUpdater();
+  const c=createUpdateController({app:{...app,getVersion:()=> '1.6.2'},pkg:{version:'1.6.2'},packagedConfig:cfg,platform:'win32',updaterFactory:()=>updater,clock:noTimers,every:noTimers});
+  assert.equal(c.start().phase,'idle');
+  assert.deepEqual(updater.feed,{provider:'github',owner:'kun-blip',repo:'kuns-kanban-calendar'});
+  await c.check(true);
+  assert.equal(c.current().phase,'available');
 });

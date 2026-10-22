@@ -9,6 +9,7 @@ const Planner = require('../renderer/planner.js');
 const { centeredCalendarBounds } = require('./window-bounds.cjs');
 const { createUpdateController } = require('./update-controller.cjs');
 const packageJson = require('../package.json');
+const packagedReleaseConfig = require('./release-config.json');
 
 const APP_ID = 'com.kuuns.kanban.calendar';
 const APP_NAME = '쿤스 칸반 캘린더';
@@ -337,7 +338,7 @@ else {
   app.whenReady().then(() => {
     registerIpc(); createWindow(); createTray();
     updateController=createUpdateController({
-      app,pkg:packageJson,updaterFactory:()=>require('electron-updater').autoUpdater,
+      app,pkg:packageJson,packagedConfig:packagedReleaseConfig,updaterFactory:()=>require('electron-updater').autoUpdater,
       emit:broadcastUpdate,
       beforeInstall:async()=>{await saveQueue.catch(()=>{});backupSnapshot();quitting=true;}
     });

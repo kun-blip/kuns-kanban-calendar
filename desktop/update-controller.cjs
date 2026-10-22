@@ -1,14 +1,19 @@
  'use strict';
 // Electron updater orchestration. It never downloads or installs without user approval.
 const validName=s=>typeof s==='string'&&/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(s);
-function githubProvider(pkg){
-  const cfg=pkg&&pkg.build&&pkg.build.publish;
-  if(!cfg||cfg.provider!=='github'||!validName(cfg.owner)||!validName(cfg.repo))return null;
-  return {owner:cfg.owner,repo:cfg.repo};
+// The release-config.json file is copied into app.asar. Electron-builder may
+// strip build-time fields from the package.json stored inside a packaged app.
+// Therefore do not rely on pkg.build.publish at runtime.
+function githubProvider(pkg,packagedConfig){
+  const valid=cfg=>cfg&&cfg.provider==='github'&&validName(cfg.owner)&&validName(cfg.repo);
+  if(valid(packagedConfig))return {owner:packagedConfig.owner,repo:packagedConfig.repo};
+  const buildConfig=pkg&&pkg.build&&pkg.build.publish;
+  if(valid(buildConfig))return {owner:buildConfig.owner,repo:buildConfig.repo};
+  return null;
 }
-function createUpdateController({app,pkg,updaterFactory,emit=()=>{},beforeInstall=async()=>{},clock=setTimeout,every=setInterval,platform=process.platform,logger=console}){
+function createUpdateController({app,pkg,packagedConfig,updaterFactory,emit=()=>{},beforeInstall=async()=>{},clock=setTimeout,every=setInterval,platform=process.platform,logger=console}){
   let updater=null,busy=false,interval=null,installing=false;
-  const repo=githubProvider(pkg);
+  const repo=githubProvider(pkg,packagedConfig);
   let state={phase:'disabled',version:app.getVersion(),newVersion:'',percent:0,message:''};
   function publish(phase,extra={}){state={...state,...extra,phase};emit({...state});return {...state};}
   function current(){return {...state};}
@@ -41,7 +46,12 @@ function createUpdateController({app,pkg,updaterFactory,emit=()=>{},beforeInstal
   function start(){
     if(!repo)return publish('disabled',{message:'GitHub Releases 주소를 설정해야 자동 업데이트를 사용할 수 있어요.'});
     if(!app.isPackaged||platform!=='win32')return publish('disabled',{message:'Windows에 설치된 앱에서 업데이트를 확인할 수 있어요.'});
-    try{updater=updaterFactory();}catch(e){logger.warn('Updater init failed',e);return publish('error',{message:'업데이트 구성 요소를 불러올 수 없어요.'});}
+    try{
+      updater=updaterFactory();
+      // Use the explicit GitHub feed even when app-update.yml or the packaged
+      // package.json does not expose the publishing fields as expected.
+      if(typeof updater.setFeedURL==='function')updater.setFeedURL({provider:'github',owner:repo.owner,repo:repo.repo});
+    }catch(e){logger.warn('Updater init failed',e);return publish('error',{message:'업데이트 구성 요소를 불러올 수 없어요.'});}
     updater.autoDownload=false;
     updater.autoInstallOnAppQuit=false;
     updater.allowPrerelease=false;
