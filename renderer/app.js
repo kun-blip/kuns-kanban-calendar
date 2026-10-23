@@ -673,6 +673,21 @@ window.addEventListener('pointerdown',event=>{
 if(DESKTOP?.sharingStatus){
   sharing=window.KuunsSharing.createSharingUI({bridge:DESKTOP,
     getEvent:id=>data.events.find(e=>e.id===id),getEvents:()=>data.events,
+    onDeleteOwnedEvent:async localId=>{
+      // Delete only the matching local entry, preserving every other private item.
+      if(!localId || !data.events.some(e=>e.id===localId))return;
+      const before=data.events;
+      data.events=before.filter(e=>e.id!==localId);
+      try{
+        if(DESKTOP?.saveData)await DESKTOP.saveData(JSON.stringify(data));
+        else localStorage.setItem(KEY,JSON.stringify(data));
+      }catch(e){
+        data.events=before;
+        throw new Error('공유 서버에서는 삭제됐지만 PC 저장에 실패했어요. 백업과 저장 공간을 확인해 주세요.');
+      }
+      clearDragUndo();renderCalendar();renderWidget();
+      $('saveState').textContent='이 PC의 앱 데이터 폴더에 자동 저장됨';
+    },
     onRemoteEvents:items=>{sharedRemoteEvents=items;renderCalendar();renderWidget();},
     onOwnedUpdates:items=>{
       // Shared fields come from the server; leave private-only fields unchanged.

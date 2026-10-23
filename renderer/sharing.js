@@ -1,7 +1,7 @@
 'use strict';
 /* v1.9.1 collaboration: only explicitly shared events leave the local PC. */
 (function(root){
-  function createSharingUI({bridge,getEvent,getEvents,onRemoteEvents,onOwnedUpdates,notify}){
+  function createSharingUI({bridge,getEvent,getEvents,onRemoteEvents,onOwnedUpdates,onDeleteOwnedEvent,notify}){
     const $=id=>document.getElementById(id);
     const overlay=$('sharingOverlay'), content=$('sharingContent');
     let session={signedIn:false,email:'',userId:null}, rows=[],contacts=[],inbox=[],roles=[];
@@ -28,11 +28,22 @@
       el.value=role;el.addEventListener('change',()=>onChange(el.value));return el;
     }
     function isMine(row){return row.owner_id===session.userId;}
+    async function deleteOwned(row){
+      if(!isMine(row)){notify('작성자만 공유 일정을 삭제할 수 있어요.');return;}
+      if(!confirm(`「${row.title}」 일정을 삭제할까요?\n내 PC의 원본 일정과 공유 서버의 일정이 삭제되며, 초대한 동료의 공유 목록에서도 사라집니다.\n삭제 후 복구하려면 백업 파일이 필요합니다.`))return;
+      await root.KuunsSharedVisibility.deleteOwnedEvent(
+        row,session.userId,id=>bridge.sharingUnshare(id),id=>onDeleteOwnedEvent?.(id)
+      );
+      selectedId=null;
+      await refresh();
+      notify('공유 일정과 이 PC의 원본 일정을 삭제했어요.');
+    }
+
     function ownedRow(localId){return rows.find(r=>isMine(r)&&r.local_event_id===localId);}
     function remoteRole(row){return isMine(row)?'owner':(roles.find(r=>r.event_id===row.id && r.user_id===session.userId)?.role || 'viewer');}
     function renderRemote(){
       onOwnedUpdates?.(rows.filter(isMine));
-      onRemoteEvents(rows.filter(r=>!isMine(r)).map(r=>({
+      onRemoteEvents(root.KuunsSharedVisibility.remoteRows(rows,getEvents(),session.userId).map(r=>({
         id:'shared:'+r.id,sharedId:r.id,remoteReadOnly:remoteRole(r)!=='editor',
         title:r.title,description:r.description||'',start:r.start_date,end:r.end_date,
         color:r.event_data?.color||'#5367e8',status:r.event_data?.status||'todo',
@@ -244,10 +255,12 @@
         $('sharingGenerated').hidden=false;notify('1회용 코드가 생성됐어요.');
       });
       btn(legacy,'코드 초대 취소',async()=>{await bridge.sharingRevoke(r.id);notify('남은 초대 코드를 취소했어요.');});
+      hint(section,'공유 중단은 내 PC의 원본 일정을 남깁니다. 원본까지 삭제하려면 아래 일정 삭제를 사용하세요.');
       btn(section,'이 일정 공유 중단',async()=>{
         if(!confirm('모든 참여자의 캘린더에서 공유 일정을 제거할까요?'))return;
         await bridge.sharingUnshare(r.id);selectedId=null;await refresh();notify('공유를 중단했어요.');
       },'btn sm danger');
+      btn(section,'일정 삭제 (내 PC + 공유)',async()=>{await deleteOwned(r);},'btn sm danger');
     }
     function render(){
       if(!opened)return;content.replaceChildren();
@@ -299,7 +312,9 @@
         const row=line(listing,'div','','share-list-item');
         const info=line(row,'div','','share-list-copy');
         line(info,'strong',item.title);line(info,'small',`${item.start_date} ~ ${item.end_date} · ${isMine(item)?'작성자':remoteRole(item)==='editor'?'편집 가능':'읽기 전용'}`);
-        btn(row,'관리/보기',async()=>{selectedId=isMine(item)?item.local_event_id:'shared:'+item.id;render();await detailLoad();});
+        const actions=line(row,'div','','share-list-actions');
+        btn(actions,'관리/보기',async()=>{selectedId='shared:'+item.id;render();await detailLoad();});
+        if(isMine(item))btn(actions,'일정 삭제',async()=>{await deleteOwned(item);},'btn sm danger');
       }
       renderContacts(content);
     }
