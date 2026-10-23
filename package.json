@@ -1,7 +1,7 @@
 {
   "name": "kuuns-kanban-calendar",
   "productName": "쿤스 칸반 캘린더",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "description": "로컬 저장 기반 Windows/macOS 작업 타임라인 캘린더",
   "private": true,
   "main": "desktop/main.cjs",
@@ -13,7 +13,7 @@
     "build:portable": "electron-builder --win portable --x64",
     "configure:github": "node scripts/configure-github.cjs",
     "publish:win": "electron-builder --win nsis --x64 --publish always",
-    "build:mac": "electron-builder --mac dmg --universal --publish never"
+    "build:mac": "electron-builder --mac dmg --universal --publish never -c.productName=KuunsKanbanCalendar"
   },
   "devDependencies": {
     "electron": "45.0.0",
@@ -73,7 +73,10 @@
             "universal"
           ]
         }
-      ]
+      ],
+      "extendInfo": {
+        "CFBundleDisplayName": "쿤스 칸반 캘린더"
+      }
     }
   },
   "dependencies": {

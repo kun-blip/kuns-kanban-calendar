@@ -17,10 +17,15 @@ test('Mac and Windows artifacts share a GitHub release, Windows updater remains 
  assert.deepEqual(pkg.build.mac.target[0].arch,['universal']);
  assert.equal(pkg.build.mac.identity,'-'); // Explicit ad-hoc signing for unsigned Mac diagnostic builds
  assert.equal(pkg.build.mac.hardenedRuntime,false);
- assert.match(pkg.scripts['build:mac'],/--mac dmg --universal --publish never/);
+ assert.match(pkg.scripts['build:mac'],/--mac dmg --universal --publish never -c\.productName=KuunsKanbanCalendar/);
+ assert.equal(pkg.build.mac.extendInfo.CFBundleDisplayName, '쿤스 칸반 캘린더');
+ assert.equal(pkg.build.productName, '쿤스 칸반 캘린더'); // Windows stays unchanged
+ assert.equal(pkg.build.appId, 'com.kuuns.kanban.calendar');
  assert.match(workflow,/needs: windows-release/);
  assert.match(workflow,/gh release upload/);
- assert.match(workflow,/macos-15/);
+ assert.match(workflow,/macos-26/);
+ assert.match(workflow,/Check macOS executable and helper bundle names/);
+ assert.match(workflow,/Launch built Mac app on macOS 26 Apple Silicon/);
  assert.match(workflow,/codesign --verify --deep --strict/);
  assert.match(workflow,/Signature=adhoc/);
 });

@@ -128,7 +128,7 @@ jobs:
   mac-release:
     name: Build macOS Universal DMG (test / unsigned)
     needs: windows-release
-    runs-on: macos-15
+    runs-on: macos-26
     defaults:
       run:
         shell: bash
@@ -175,6 +175,45 @@ jobs:
           signature=$(codesign -dv --verbose=4 "$app_path" 2>&1)
           echo "$signature" | grep -F 'Signature=adhoc'
           echo "Ad-hoc signature verified (NOT an Apple Developer ID signature)."
+
+      - name: Check macOS executable and helper bundle names
+        run: |
+          set -euo pipefail
+          app_path=$(find dist -maxdepth 3 -type d -name '*.app' -print -quit)
+          test -n "$app_path" || { echo "Missing .app" >&2; exit 1; }
+          plist="$app_path/Contents/Info.plist"
+          bundle_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$plist")
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$plist")
+          echo "Bundle name: $bundle_name; executable: $executable"
+          test "$bundle_name" = 'KuunsKanbanCalendar' || { echo 'CFBundleName is not the expected ASCII name' >&2; exit 1; }
+          test -x "$app_path/Contents/MacOS/$executable" || { echo 'Main binary missing' >&2; exit 1; }
+          for suffix in '' ' (GPU)' ' (Plugin)' ' (Renderer)'; do
+            helper="$app_path/Contents/Frameworks/$bundle_name Helper$suffix.app"
+            test -d "$helper" || { echo "Missing helper: $helper" >&2; exit 1; }
+            helper_exe=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$helper/Contents/Info.plist")
+            test -x "$helper/Contents/MacOS/$helper_exe" || { echo "Missing helper binary: $helper_exe" >&2; exit 1; }
+          done
+          echo 'macOS app/helper names are consistent.'
+
+      - name: Launch built Mac app on macOS 26 Apple Silicon
+        run: |
+          set -euo pipefail
+          app_path=$(find dist -maxdepth 3 -type d -name '*.app' -print -quit)
+          exe_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_path/Contents/Info.plist")
+          log_path="$RUNNER_TEMP/kuuns-mac-launch.log"
+          export ELECTRON_ENABLE_LOGGING=1
+          "$app_path/Contents/MacOS/$exe_name" >"$log_path" 2>&1 &
+          app_pid=$!
+          sleep 12
+          if ! kill -0 "$app_pid" 2>/dev/null; then
+            echo 'ERROR: packaged macOS app quit during startup; log follows:' >&2
+            cat "$log_path" >&2 || true
+            wait "$app_pid" || true
+            exit 1
+          fi
+          echo 'macOS packaged app remained running for 12 seconds.'
+          kill "$app_pid" || true
+          wait "$app_pid" || true
 
       - name: Verify and upload Mac DMG to the existing Release
         env:
