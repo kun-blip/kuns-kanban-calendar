@@ -1,7 +1,7 @@
 {
   "name": "kuuns-kanban-calendar",
   "productName": "쿤스 칸반 캘린더",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "description": "로컬 저장 기반 Windows 작업 타임라인 캘린더",
   "private": true,
   "main": "desktop/main.cjs",
