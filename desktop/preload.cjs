@@ -1,6 +1,7 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('kuunsDesktop', Object.freeze({
+  platform: process.platform,
   getUpdateState:()=>ipcRenderer.invoke('update:getState'),
   checkUpdate:()=>ipcRenderer.invoke('update:check'),
   downloadUpdate:()=>ipcRenderer.invoke('update:download'),

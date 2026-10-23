@@ -18,6 +18,8 @@ const packagedReleaseConfig = require('./release-config.json');
 const APP_ID = 'com.kuuns.kanban.calendar';
 const APP_NAME = '쿤스 칸반 캘린더';
 const ICON = path.join(__dirname, '..', 'assets', 'app.png');
+const TRAY_ICON = process.platform === 'darwin'
+  ? path.join(__dirname, '..', 'assets', 'tray-macTemplate.png') : ICON;
 const HTML = path.join(__dirname, '..', 'renderer', 'index.html');
 app.setName(APP_NAME);
 if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
@@ -38,7 +40,7 @@ let welcomeEligible = false;
 function showAvailableUpdateNotice(state) {
   if (!shouldAnnounceUpdate(state, dismissedUpdateVersionThisRun, lastNotifiedUpdateVersion)) return;
   // The in-app dialog is primary when the calendar is on screen.
-  // Use a Windows toast only when it is running in the tray/background.
+  // Use a native OS notification only when it is running in the tray/background.
   if (window && !window.isDestroyed() && window.isVisible()) return;
   if (!Notification.isSupported()) return;
   try {
@@ -115,7 +117,7 @@ function showNotification(title, body, eventId = '') {
     });
     notice.show();
     return true;
-  } catch (err) { console.error('Windows notification failed:', err); return false; }
+  } catch (err) { console.error('System notification failed:', err); return false; }
 }
 async function checkReminders() {
   if (reminderBusy) return;
@@ -184,7 +186,7 @@ function createWindow() {
     if (updateController && !window.isDestroyed()) window.webContents.send('update:state', updateController.current());
   });
   window.webContents.on('before-input-event',(event,input)=>{
-    if(input.type==='keyDown'&&input.control&&!input.alt&&!input.shift&&String(input.key).toLowerCase()==='n'){
+    if(input.type==='keyDown'&&(process.platform==='darwin'?input.meta:input.control)&&!input.alt&&!input.shift&&String(input.key).toLowerCase()==='n'){
       event.preventDefault();focusWindow();window.webContents.send('shortcut:newEvent');
     }
   });
@@ -215,7 +217,7 @@ function updateTrayMenu() {
     {label:'자동 백업 폴더 열기',click:()=>{const folder=autoBackupFolder();fs.mkdirSync(folder,{recursive:true});shell.openPath(folder);}},
     {label:'업데이트 확인',click:()=>{openUpdatePanel();void updateController?.check(true);}},
     {type:'separator'},
-    {label:'Windows 시작할 때 자동 실행',type:'checkbox',checked:autostartState(),click:item=>{try{setAutostart(item.checked);}catch(err){console.error('Autostart failed:',err);updateTrayMenu();}}},
+    ...(process.platform === 'win32' ? [{label:'Windows 시작할 때 자동 실행',type:'checkbox',checked:autostartState(),click:item=>{try{setAutostart(item.checked);}catch(err){console.error('Autostart failed:',err);updateTrayMenu();}}}] : []),
     {type:'separator'},
     {label:'완전히 종료',click:()=>{quitting=true;app.quit();}}
   ];
@@ -223,7 +225,7 @@ function updateTrayMenu() {
 }
 function createTray() {
   try {
-    tray = new Tray(nativeImage.createFromPath(ICON));
+    tray = new Tray(nativeImage.createFromPath(TRAY_ICON));
     tray.setToolTip(`${APP_NAME} · 일정 알림 실행 중`);
     tray.on('double-click', focusWindow);
     tray.on('click', focusWindow);
@@ -256,7 +258,7 @@ function registerIpc() {
     return {ok:true,dismissedVersion:version};
   });
   ipcMain.handle('feedback:submit',(_event,input)=>feedbackController.submit(input));
-  ipcMain.handle('settings:getAutostart',()=>({enabled:autostartState(),packaged:app.isPackaged}));
+  ipcMain.handle('settings:getAutostart',()=>({enabled:autostartState(),packaged:app.isPackaged, supported:process.platform==='win32'}));
   ipcMain.handle('settings:setAutostart',(_event,enabled)=>setAutostart(!!enabled));
   ipcMain.on('calendar:read', event => {
     try { event.returnValue = readText(dataFile(), ''); }
@@ -381,7 +383,7 @@ function registerIpc() {
     return {ok:true,widgetMode:isWidget};
   });
   ipcMain.handle('notification:test', () => {
-    const ok = showNotification(APP_NAME, 'PC 알림 테스트입니다. 일정 알림도 이 방식으로 표시됩니다.');
+    const ok = showNotification(APP_NAME, '시스템 알림 테스트입니다. 일정 알림도 이 방식으로 표시됩니다.');
     return { ok };
   });
 }
@@ -401,6 +403,18 @@ else {
   app.whenReady().then(() => {
     welcomeEligible = detectWelcomeEligibility();
     registerIpc(); createWindow(); createTray();
+    if (process.platform === 'darwin') {
+      Menu.setApplicationMenu(Menu.buildFromTemplate([
+        { label: APP_NAME, submenu: [
+          { role: 'about' }, { type: 'separator' },
+          { label: '캘린더 열기', click: focusWindow },
+          { label: '오늘의 일정', click: showTodayPanel },
+          { type: 'separator' }, { role: 'hide' }, { role: 'quit' }
+        ] },
+        { role: 'editMenu' },
+        { role: 'windowMenu' }
+      ]));
+    }
     updateController=createUpdateController({
       app,pkg:packageJson,packagedConfig:packagedReleaseConfig,updaterFactory:()=>require('electron-updater').autoUpdater,
       emit:broadcastUpdate,

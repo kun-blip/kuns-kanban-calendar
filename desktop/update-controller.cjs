@@ -18,7 +18,7 @@ function createUpdateController({app,pkg,packagedConfig,updaterFactory,emit=()=>
   function publish(phase,extra={}){state={...state,...extra,phase};emit({...state});return {...state};}
   function current(){return {...state};}
   async function check(manual=false){
-    if(!updater)return publish('disabled',{message:repo?'설치형 Windows 앱에서 업데이트를 확인할 수 있어요.':'GitHub Releases 저장소를 먼저 연결해 주세요.'});
+    if(!updater)return publish('disabled',{message:platform==='darwin'?'Mac 시험판은 자동 업데이트를 지원하지 않아요. GitHub Releases에서 최신 DMG를 설치해 주세요.':repo?'설치형 Windows 앱에서 업데이트를 확인할 수 있어요.':'GitHub Releases 저장소를 먼저 연결해 주세요.'});
     if(busy||['downloading','downloaded','installing'].includes(state.phase))return current();
     busy=true;publish('checking',{message:'GitHub Releases에서 새 버전을 확인 중이에요.',percent:0});
     try{await updater.checkForUpdates();}
@@ -45,6 +45,7 @@ function createUpdateController({app,pkg,packagedConfig,updaterFactory,emit=()=>
   }
   function start(){
     if(!repo)return publish('disabled',{message:'GitHub Releases 주소를 설정해야 자동 업데이트를 사용할 수 있어요.'});
+    if(platform==='darwin')return publish('disabled',{message:'Mac 시험판은 아직 서명되지 않아 자동 업데이트를 지원하지 않아요. GitHub Releases에서 새 DMG를 설치해 주세요.'});
     if(!app.isPackaged||platform!=='win32')return publish('disabled',{message:'Windows에 설치된 앱에서 업데이트를 확인할 수 있어요.'});
     try{
       updater=updaterFactory();

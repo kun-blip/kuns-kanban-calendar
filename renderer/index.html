@@ -418,7 +418,7 @@ html[data-theme=dark] .welcome-logo{filter:invert(1)}
   <div class="reminder-input-grid"><div class="field"><label for="reminderTiming">알림 받을 시점</label><select id="reminderTiming"><option value="0">일정 시작 당일</option><option value="1">시작 1일 전</option><option value="2">시작 2일 전</option><option value="3">시작 3일 전</option><option value="custom">날짜 직접 지정</option></select></div><div class="field"><label for="reminderTime">알림 팝업 시간</label><input id="reminderTime" type="time" step="60" value="09:00"/></div></div>
   <div class="field custom-reminder" id="customReminderWrap" hidden><label for="customReminderDate">알림 날짜 직접 지정</label><input id="customReminderDate" type="date"/></div>
   <input id="eventReminderAt" type="hidden"/><div id="reminderSchedule" class="reminder-schedule">알림 예정 시간</div>
-</div><div class="notice-status" id="noticeStatus">브라우저 알림 권한 확인 중</div><p class="helper">알림은 이 캘린더를 Windows 앱이 실행 중이면 창을 닫아도 트레이에서 알림을 확인해요. 완전히 종료하면 알림이 중지됩니다.</p></div></div><div class="modal-foot"><button type="button" class="btn danger sm" id="deleteEvent" hidden>일정 삭제</button><button type="button" class="btn sm" id="duplicateEvent" hidden>일정 복제</button><span id="newEventHint" style="font-size:11px;color:#99a4b1">변경 사항은 자동 저장됩니다</span><div class="right-actions"><button class="btn" type="button" id="cancelEvent">취소</button><button class="btn primary" type="submit">저장하기</button></div></div></form>
+</div><div class="notice-status" id="noticeStatus">브라우저 알림 권한 확인 중</div><p class="helper">데스크톱 앱이 실행 중이면 창을 닫아도 트레이에서 알림을 확인해요. 완전히 종료하면 알림이 중지됩니다.</p></div></div><div class="modal-foot"><button type="button" class="btn danger sm" id="deleteEvent" hidden>일정 삭제</button><button type="button" class="btn sm" id="duplicateEvent" hidden>일정 복제</button><span id="newEventHint" style="font-size:11px;color:#99a4b1">변경 사항은 자동 저장됩니다</span><div class="right-actions"><button class="btn" type="button" id="cancelEvent">취소</button><button class="btn primary" type="submit">저장하기</button></div></div></form>
 </section>
 <section class="modal shortcut-modal" id="shortcutModal" role="dialog" aria-modal="true" aria-labelledby="shortcutModalTitle" hidden>
    <div class="modal-head"><div><h2 id="shortcutModalTitle">바로가기 추가</h2><p class="modal-sub">아이콘과 URL을 설정해 빠르게 열어보세요.</p></div><button id="closeShortcut" class="btn icon-only ghost" type="button" aria-label="닫기">✕</button></div>
@@ -531,12 +531,13 @@ function normalizedShortcuts(value){
  while(result.length<3)result.push(null);
  return result;
 }
+const PLATFORM=DESKTOP?.platform==='darwin'?'macOS':'Windows';
 let data,toastTimer=null;try{const stored=DESKTOP?DESKTOP.readData():localStorage.getItem(KEY);if(stored){const parsed=JSON.parse(stored);data={version:11,theme:parsed.theme==='dark'?'dark':'light',widgetCalendarMode:parsed.widgetCalendarMode==='week'?'week':'month',calendarMode:parsed.calendarMode==='week'?'week':'month',notificationsEnabled:parsed.notificationsEnabled!==false,recentColors:(Array.isArray(parsed.recentColors)?parsed.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS),todos:(Array.isArray(parsed.todos)?parsed.todos:[]).map(cleanTodo).filter(Boolean),events:(Array.isArray(parsed.events)?parsed.events:[]).map(cleanEvent).filter(Boolean),notes:(Array.isArray(parsed.notes)?parsed.notes:[]).map(cleanNote).filter(Boolean),view:parsed.view==='detail'?'detail':'compact',shortcuts:normalizedShortcuts(parsed.shortcuts),widgetMode:!!parsed.widgetMode,games:(Array.isArray(parsed.games)?parsed.games:defaultGames()).map(cleanGame).filter(Boolean)};}else{data=sampleData();if(DESKTOP)DESKTOP.saveData(JSON.stringify(data)).catch(()=>notify('저장에 실패했어요.'));else localStorage.setItem(KEY,JSON.stringify(data));}}catch(e){data=sampleData();notify('저장소를 읽지 못했어요. 백업 파일을 사용해 복원할 수 있어요.');}
   data.theme=data.theme==='dark'?'dark':'light';data.widgetCalendarMode=data.widgetCalendarMode==='week'?'week':'month';data.notificationsEnabled=data.notificationsEnabled!==false;data.recentColors=(Array.isArray(data.recentColors)?data.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS);
   data.shortcuts=normalizedShortcuts(data.shortcuts);
  data.todos=Array.isArray(data.todos)?data.todos:[];
  data.calendarMode=data.calendarMode==='week'?'week':'month';
-data.widgetMode=DESKTOP?false:!!data.widgetMode; // Always start Windows in normal calendar mode.
+data.widgetMode=DESKTOP?false:!!data.widgetMode; // Always start a desktop app in normal calendar mode.
 const gameById=id=>data.games.find(g=>g.id===id);
  const gameIcon=game=>game?.icon||(game?.id==='randomdice2'?DEFAULT_GAME_ICON:'');
  let month=new Date(today.getFullYear(),today.getMonth(),1),selectedDate=todayKey,editingId=null,selectedColor=COLORS[0],selectedNoteId=data.notes[0]?.id||null;let memoOpened=false,modalOpened=false,shortcutOpened=false,restoreOpened=false,editingShortcutIndex=0,shortcutEditMode=false;
@@ -544,8 +545,8 @@ function notify(message){const el=$('toast');el.textContent=message;el.classList
  function applyTheme(){document.documentElement.dataset.theme=data.theme;document.querySelector('meta[name="color-scheme"]').content=data.theme==='dark'?'dark':'light';$('themeToggle').innerHTML='<span class="theme-icon" aria-hidden="true">'+(data.theme==='dark'?'☀':'☾')+'</span>';$('themeToggle').setAttribute('aria-pressed',String(data.theme==='dark'));$('themeToggle').setAttribute('aria-label',data.theme==='dark'?'라이트 모드로 전환':'다크 모드로 전환');}
  applyTheme();
  $('themeToggle').addEventListener('click',()=>{data.theme=data.theme==='dark'?'light':'dark';applyTheme();save();});
- async function renderAutostart(){if(!DESKTOP?.getAutostart){$('autostartToggle').hidden=true;return;}try{const r=await DESKTOP.getAutostart();$('autostartToggle').classList.toggle('is-on',!!r.enabled);$('autostartToggle').setAttribute('aria-pressed',String(!!r.enabled));}catch{$('autostartToggle').classList.remove('is-on');}}
- $('autostartToggle').addEventListener('click',async()=>{if(!DESKTOP?.setAutostart)return;try{const prev=await DESKTOP.getAutostart();const next=await DESKTOP.setAutostart(!prev.enabled);await renderAutostart();notify(next.enabled?'Windows 시작 시 자동 실행을 켰어요.':'Windows 시작 시 자동 실행을 껐어요.');}catch{notify('자동 실행 설정을 변경하지 못했어요.');}});
+ async function renderAutostart(){if(!DESKTOP?.getAutostart){$('autostartToggle').hidden=true;return;}try{const r=await DESKTOP.getAutostart();if(r.supported===false){$('autostartToggle').hidden=true;return;}else $('autostartToggle').hidden=false;$('autostartToggle').classList.toggle('is-on',!!r.enabled);$('autostartToggle').setAttribute('aria-pressed',String(!!r.enabled));}catch{$('autostartToggle').classList.remove('is-on');}}
+ $('autostartToggle').addEventListener('click',async()=>{if(!DESKTOP?.setAutostart)return;try{const prev=await DESKTOP.getAutostart();const next=await DESKTOP.setAutostart(!prev.enabled);await renderAutostart();notify(next.enabled?PLATFORM+' 시작 시 자동 실행을 켰어요.':PLATFORM+' 시작 시 자동 실행을 껐어요.');}catch{notify('자동 실행 설정을 변경하지 못했어요.');}});
  renderAutostart();
 function save(){
   try{renderWidget();
@@ -879,17 +880,17 @@ function reminderDefault(dateKey){return `${dateKey}T09:00`;}
 function notificationAvailable(){return DESKTOP?true:('Notification' in window&&window.isSecureContext);}
 function updateNotificationStatus(){
  const btn=$('notificationBtn');btn.classList.toggle('active',!!data.notificationsEnabled);btn.setAttribute('aria-pressed',String(!!data.notificationsEnabled));
- if(DESKTOP){$('noticeStatus').textContent=data.notificationsEnabled?'알림 예정 시각에 Windows 시스템 알림을 표시해요. 앱이 트레이에서 실행 중이어야 합니다.':'Windows 알림이 꺼져 있어요. 이 앱에서 다시 켤 수 있어요.';return;}
+ if(DESKTOP){$('noticeStatus').textContent=data.notificationsEnabled?'알림 예정 시각에 '+PLATFORM+' 시스템 알림을 표시해요. 앱이 트레이에서 실행 중이어야 합니다.':PLATFORM+' 알림이 꺼져 있어요. 이 앱에서 다시 켤 수 있어요.';return;}
  if(!notificationAvailable()){$('noticeStatus').textContent='PC 알림을 지원하지 않는 실행 환경입니다. 앱 내 알림은 사용할 수 있어요.';return;}
  const perm=Notification.permission;
  if(!data.notificationsEnabled){$('noticeStatus').textContent='앱의 알림 표시가 꺼져 있어요. 상단 벨 아이콘으로 다시 켤 수 있어요.';return;}
  $('noticeStatus').textContent=perm==='granted'?'PC 알림이 허용되었어요.':'default'===perm?'PC 알림을 받으려면 상단의 벨 아이콘을 눌러 허용하세요.':'PC 알림이 차단되어 있어요. 브라우저 사이트 설정에서 알림을 허용해 주세요.';
 }
 async function requestNotifyPermission(){
- if(data.notificationsEnabled){data.notificationsEnabled=false;updateNotificationStatus();save();notify('Windows 알림을 껐어요.');return;}
+ if(data.notificationsEnabled){data.notificationsEnabled=false;updateNotificationStatus();save();notify(PLATFORM+' 알림을 껐어요.');return;}
  data.notificationsEnabled=true;
  if(!notificationAvailable()){notify('브라우저 환경에서 PC 알림을 사용할 수 없어요. 앱 내 알림만 사용돼요.');updateNotificationStatus();save();return;}
- try{if(!DESKTOP&&Notification.permission==='default'){const result=await Notification.requestPermission();if(result!=='granted')data.notificationsEnabled=false;notify(result==='granted'?'PC 알림이 허용되었어요.':'PC 알림 권한이 허용되지 않았어요.');}else notify('Windows 알림을 켰어요.');}
+ try{if(!DESKTOP&&Notification.permission==='default'){const result=await Notification.requestPermission();if(result!=='granted')data.notificationsEnabled=false;notify(result==='granted'?'PC 알림이 허용되었어요.':'PC 알림 권한이 허용되지 않았어요.');}else notify(PLATFORM+' 알림을 켰어요.');}
  catch{data.notificationsEnabled=false;notify('PC 알림 권한 요청에 실패했어요.');}
  updateNotificationStatus();save();
 }
@@ -902,7 +903,7 @@ function popupForEvent(title,body,onclick,tag='test'){
   try{const n=new Notification(title,{body,icon:DEFAULT_GAME_ICON,tag:'kuuns-reminder-'+tag});if(onclick)n.onclick=()=>{window.focus();onclick();n.close();};return true;}catch(err){/* file:// or platform unsupported: fallback */}
  }return false;
 }
-$('testNotification').addEventListener('click',async()=>{if(DESKTOP){const result=await DESKTOP.testNotification();notify(result.ok?'테스트 알림을 전송했어요.':'Windows 알림이 표시되지 않았어요.');return;}if(notificationAvailable()&&Notification.permission==='default')await requestNotifyPermission();const ok=popupForEvent('쿤스 칸반 캘린더','PC 알림 테스트입니다.');notify(ok?'알림을 보냈어요. 윈도우 알림 센터도 확인해 주세요.':'PC 시스템 알림을 표시할 수 없어 앱 내부에 안내했어요.');});
+$('testNotification').addEventListener('click',async()=>{if(DESKTOP){const result=await DESKTOP.testNotification();notify(result.ok?'테스트 알림을 전송했어요.':PLATFORM+' 알림이 표시되지 않았어요.');return;}if(notificationAvailable()&&Notification.permission==='default')await requestNotifyPermission();const ok=popupForEvent('쿤스 칸반 캘린더','PC 알림 테스트입니다.');notify(ok?'알림을 보냈어요. 윈도우 알림 센터도 확인해 주세요.':'PC 시스템 알림을 표시할 수 없어 앱 내부에 안내했어요.');});
 const FIRED_KEY=KEY+'_notified_v3';
 function checkReminders(){
  let seen={};try{seen=JSON.parse(localStorage.getItem(FIRED_KEY)||'{}')||{};}catch{}
@@ -1017,7 +1018,7 @@ for(const v of ['compact','detail']){$(v==='compact'?'compactBtn':'detailBtn').a
  });
 $('importBtn').addEventListener('click',()=>$('importFile').click());$('importFile').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>10*1024*1024)throw Error('파일이 너무 큽니다 (최대 10MB).');const obj=JSON.parse(await file.text());if(!obj||!Array.isArray(obj.events)||!Array.isArray(obj.notes))throw Error('올바른 백업 JSON 파일이 아닙니다.');const events=obj.events.map(cleanEvent);const notes=obj.notes.map(cleanNote);if(events.some(x=>!x)||notes.some(x=>!x))throw Error('백업 데이터에 잘못된 일정 또는 메모가 있어요.');if(!confirm(`백업에서 일정 ${events.length}개, 메모 ${notes.length}개를 복원할까요?\n\n현재 저장된 데이터는 백업 데이터로 대체됩니다. 필요하면 먼저 현재 데이터를 백업해 주세요.`))return;data={version:11,theme:obj.theme==='dark'?'dark':'light',widgetCalendarMode:obj.widgetCalendarMode==='week'?'week':'month',notificationsEnabled:obj.notificationsEnabled!==false,events,notes,games:(Array.isArray(obj.games)?obj.games:defaultGames()).map(cleanGame).filter(Boolean),todos:(Array.isArray(obj.todos)?obj.todos:[]).map(cleanTodo).filter(Boolean),calendarMode:obj.calendarMode==='week'?'week':'month',shortcuts:normalizedShortcuts(obj.shortcuts),widgetMode:!!obj.widgetMode,view:obj.view==='detail'?'detail':'compact'};clearDragUndo();selectedNoteId=data.notes[0]?.id||null;save();closeAll(); let chosenRestore=null;
  async function openRestore(){
-  if(!DESKTOP){notify('자동 백업 복원은 Windows 앱에서 지원해요.');return;}
+  if(!DESKTOP){notify('자동 백업 복원은 데스크톱 앱에서 지원해요.');return;}
   restoreOpened=true;$('restoreModal').hidden=false;displayOverlay();
   const list=$('restoreList');list.replaceChildren();chosenRestore=null;$('restoreApply').disabled=true;
   $('restorePreview').textContent='백업을 선택해 내용을 확인하세요.';
@@ -1044,7 +1045,7 @@ $('importBtn').addEventListener('click',()=>$('importFile').click());$('importFi
  updateGameFilter();renderCalendar();renderNoteList();renderPinnedNotes();renderShortcuts();setWidgetMode(data.widgetMode,false);notify('백업을 불러왔어요.');}catch(err){notify(err.message||'백업 파일을 불러오지 못했어요.');}finally{e.target.value='';}});
  let chosenRestore=null;
  async function openRestore(){
-  if(!DESKTOP){notify('자동 백업 복원은 Windows 앱에서 지원해요.');return;}
+  if(!DESKTOP){notify('자동 백업 복원은 데스크톱 앱에서 지원해요.');return;}
   restoreOpened=true;$('restoreModal').hidden=false;displayOverlay();
   const list=$('restoreList');list.replaceChildren();chosenRestore=null;$('restoreApply').disabled=true;
   $('restorePreview').textContent='백업을 선택해 내용을 확인하세요.';
@@ -1069,8 +1070,8 @@ $('importBtn').addEventListener('click',()=>$('importFile').click());$('importFi
   }catch(err){notify('복원 실패: '+(err.message||'백업 파일을 확인해 주세요.'));}
  });
  updateGameFilter();renderCalendar();renderNoteList();renderPinnedNotes();renderShortcuts();setWidgetMode(data.widgetMode,false);updateNotificationStatus();checkReminders();
- if(DESKTOP){DESKTOP.onOpenNormalCalendar?.(()=>{closeAll();setWidgetMode(false);});DESKTOP.onNewEventShortcut?.(()=>{closeAll();if(data.widgetMode)setWidgetMode(false).then(()=>openEvent(null,selectedDate));else openEvent(null,selectedDate);});DESKTOP.onTrayToday?.(()=>{closeAll();selectedDate=toDateKey(new Date());const d=parseKey(selectedDate);month=new Date(d.getFullYear(),d.getMonth(),1);if(data.widgetMode)setWidgetMode(false).then(renderCalendar);else renderCalendar();});$('autoBackupOpen').addEventListener('click',openRestore);DESKTOP.getAutoBackupStatus().then(info=>{if(info && $('autoBackupOpen'))$('autoBackupOpen').textContent='자동 백업: '+(info.folder||'앱 데이터 폴더')+' · 최근 30개 보관';}).catch(()=>{$('autoBackupOpen').textContent='자동 백업 상태 확인 불가';});DESKTOP.onReminderClick(id=>{const event=data.events.find(e=>e.id===id);if(event)openEvent(id);}); document.querySelector('.bottom-hint p:last-child').textContent='Windows v1.5.4 · 창을 닫으면 트레이에서 알림을 계속 확인합니다. · 완전 종료: 트레이 아이콘 우클릭';}
-if(!DESKTOP){$('autoBackupOpen').textContent='자동 백업: Windows 앱에서 사용 가능';$('autoBackupOpen').disabled=true;}
+ if(DESKTOP){DESKTOP.onOpenNormalCalendar?.(()=>{closeAll();setWidgetMode(false);});DESKTOP.onNewEventShortcut?.(()=>{closeAll();if(data.widgetMode)setWidgetMode(false).then(()=>openEvent(null,selectedDate));else openEvent(null,selectedDate);});DESKTOP.onTrayToday?.(()=>{closeAll();selectedDate=toDateKey(new Date());const d=parseKey(selectedDate);month=new Date(d.getFullYear(),d.getMonth(),1);if(data.widgetMode)setWidgetMode(false).then(renderCalendar);else renderCalendar();});$('autoBackupOpen').addEventListener('click',openRestore);DESKTOP.getAutoBackupStatus().then(info=>{if(info && $('autoBackupOpen'))$('autoBackupOpen').textContent='자동 백업: '+(info.folder||'앱 데이터 폴더')+' · 최근 30개 보관';}).catch(()=>{$('autoBackupOpen').textContent='자동 백업 상태 확인 불가';});DESKTOP.onReminderClick(id=>{const event=data.events.find(e=>e.id===id);if(event)openEvent(id);}); document.querySelector('.bottom-hint p:last-child').textContent=PLATFORM+' 앱 · 창을 닫으면 트레이에서 알림을 계속 확인합니다. · 완전 종료: 트레이 아이콘 메뉴';}
+if(!DESKTOP){$('autoBackupOpen').textContent='자동 백업: 데스크톱 앱에서 사용 가능';$('autoBackupOpen').disabled=true;}
 // A calm wave appears at physical mouse press only. It never captures pointer input.
 window.addEventListener('pointerdown',event=>{
 

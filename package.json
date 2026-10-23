@@ -1,8 +1,8 @@
 {
   "name": "kuuns-kanban-calendar",
   "productName": "쿤스 칸반 캘린더",
-  "version": "1.7.6",
-  "description": "로컬 저장 기반 Windows 작업 타임라인 캘린더",
+  "version": "1.8.0",
+  "description": "로컬 저장 기반 Windows/macOS 작업 타임라인 캘린더",
   "private": true,
   "main": "desktop/main.cjs",
   "author": "Local personal calendar",
@@ -12,7 +12,8 @@
     "build:win": "electron-builder --win nsis --x64 --publish never",
     "build:portable": "electron-builder --win portable --x64",
     "configure:github": "node scripts/configure-github.cjs",
-    "publish:win": "electron-builder --win nsis --x64 --publish always"
+    "publish:win": "electron-builder --win nsis --x64 --publish always",
+    "build:mac": "electron-builder --mac dmg --universal --publish never"
   },
   "devDependencies": {
     "electron": "45.0.0",
@@ -58,6 +59,21 @@
       "owner": "kun-blip",
       "repo": "kuns-kanban-calendar",
       "releaseType": "release"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/app-mac.png",
+      "artifactName": "KuunsKanbanCalendar-${version}-mac-${arch}.${ext}",
+      "identity": null,
+      "hardenedRuntime": false,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
     }
   },
   "dependencies": {
