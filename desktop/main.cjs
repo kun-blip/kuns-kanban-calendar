@@ -8,6 +8,9 @@ const { snapshotDaily, dayStamp } = require('./auto-backup.cjs');
 const Planner = require('../renderer/planner.js');
 const { centeredCalendarBounds } = require('./window-bounds.cjs');
 const { createUpdateController } = require('./update-controller.cjs');
+const { shouldAnnounceUpdate } = require('./update-notice.cjs');
+const { createFeedbackController } = require('./feedback.cjs');
+const feedbackConfig = require('./feedback-config.json');
 const packageJson = require('../package.json');
 const packagedReleaseConfig = require('./release-config.json');
 
@@ -27,8 +30,25 @@ let regularBounds = null;
 let isWidget = false;
 let timer = null;
 let updateController = null;
+const feedbackController = createFeedbackController({endpoint:feedbackConfig.endpoint,version:app.getVersion()});
+let lastNotifiedUpdateVersion = '';
+function showAvailableUpdateNotice(state) {
+  if (!shouldAnnounceUpdate(state, loadSettings().dismissedUpdateVersion || '', lastNotifiedUpdateVersion)) return;
+  lastNotifiedUpdateVersion = state.newVersion;
+  if (!Notification.isSupported()) return;
+  try {
+    const notice = new Notification({
+      title: `${APP_NAME} 새 버전`,
+      body: `v${state.newVersion} 업데이트가 있어요. 클릭하면 설치 안내를 볼 수 있습니다.`,
+      icon: ICON
+    });
+    notice.on('click', openUpdatePanel);
+    notice.show();
+  } catch (err) { console.warn('Update notice:', err); }
+}
 function broadcastUpdate(state) {
   if(window && !window.isDestroyed()) window.webContents.send('update:state',state);
+  showAvailableUpdateNotice(state);
   if(tray) updateTrayMenu();
 }
 function openUpdatePanel(){focusWindow();if(window && !window.isDestroyed())window.webContents.send('update:open');}
@@ -193,6 +213,14 @@ function registerIpc() {
   ipcMain.handle('update:check',()=>updateController?.check(true));
   ipcMain.handle('update:download',()=>updateController?.download());
   ipcMain.handle('update:install',()=>updateController?.install());
+  ipcMain.handle('update:getNoticePreference',()=>({dismissedVersion:loadSettings().dismissedUpdateVersion||''}));
+  ipcMain.handle('update:dismissNotice',(_event,version)=>{
+    const state=updateController?.current();
+    if(typeof version!=='string'||!state||state.newVersion!==version)return {ok:false};
+    const next=loadSettings();next.dismissedUpdateVersion=version;writeSettings(next);
+    return {ok:true,dismissedVersion:version};
+  });
+  ipcMain.handle('feedback:submit',(_event,input)=>feedbackController.submit(input));
   ipcMain.handle('settings:getAutostart',()=>({enabled:autostartState(),packaged:app.isPackaged}));
   ipcMain.handle('settings:setAutostart',(_event,enabled)=>setAutostart(!!enabled));
   ipcMain.on('calendar:read', event => {
@@ -345,7 +373,7 @@ else {
     updateController.start();
     backupSnapshot();
     timer = setInterval(() => { backupSnapshot(); void checkReminders(); }, 20_000);
-    powerMonitor.on('resume', () => { void checkReminders(); });
+    powerMonitor.on('resume', () => { void checkReminders(); void updateController?.check(false); });
     void checkReminders();
     app.on('activate', focusWindow);
   });
