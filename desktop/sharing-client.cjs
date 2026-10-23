@@ -29,6 +29,15 @@ function normalizeEvent(value) {
     }
   };
 }
+function recordPatch(record) {
+  return {title:record.title,description:record.description,start_date:record.start_date,
+    end_date:record.end_date,event_data:record.event_data};
+}
+function safeUuid(v) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v))) throw new Error('유효하지 않은 항목입니다.');
+  return v;
+}
+function validateRole(v){if(!['viewer','editor'].includes(v))throw new Error('유효하지 않은 공유 권한입니다.');return v;}
 function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}) {
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url)) throw new Error('Supabase URL is invalid');
   if (!/^sb_publishable_/.test(publishableKey)) throw new Error('Supabase publishable key is missing');
@@ -61,6 +70,8 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
         422:'입력 내용을 다시 확인해 주세요.',
         429:'요청이 너무 많아요. 잠시 후 다시 시도해 주세요.'
       };
+      if (/Edit conflict/i.test(raw)) throw new Error('동료가 먼저 수정했어요. 새로고침한 후 다시 편집해 주세요.');
+      if (/Not authorized/i.test(raw)) throw new Error('이 작업을 수행할 권한이 없습니다.');
       throw new Error(allowed[response.status] || `연결 오류(${response.status})가 발생했습니다.`);
     }
     return output;
@@ -81,7 +92,7 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
     })();
     try{return await renewing;}finally{renewing=null;}
   }
-  function publicStatus(){return {signedIn:!!session?.access_token,email:session?.user?.email || session?.email || ''};}
+  function publicStatus(){return {signedIn:!!session?.access_token,email:session?.user?.email || session?.email || '',userId:session?.user?.id || null};}
   return {
     publicStatus,
     requestOtp: async email => {
@@ -99,18 +110,18 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
     },
     signOut: async()=>{ const token=session?.access_token;persist(null);if(token)try{await request('/auth/v1/logout',{method:'POST',accessToken:token});}catch{} return publicStatus(); },
     list: async()=> {
-      const events=await authorized('/rest/v1/shared_events?select=id,owner_id,local_event_id,title,description,start_date,end_date,event_data,updated_at&order=start_date.asc');
+      const events=await authorized('/rest/v1/shared_events?select=id,owner_id,local_event_id,title,description,start_date,end_date,event_data,revision,updated_at&order=start_date.asc');
       return Array.isArray(events)?events:[];
     },
-    publish:async event=>{
+    publish:async (event,expectedRevision=null)=>{
       const record=normalizeEvent(event);
       const userId=session?.user?.id;
       if(!userId)throw new Error('먼저 이메일 인증을 해주세요.');
       const filter='owner_id=eq.'+encodeURIComponent(userId)+'&local_event_id=eq.'+encodeURIComponent(record.local_event_id);
-      const exists=await authorized('/rest/v1/shared_events?select=id&'+filter);
+      const exists=await authorized('/rest/v1/shared_events?select=id,revision&'+filter);
       if(Array.isArray(exists)&&exists.length){
-        const response=await authorized('/rest/v1/shared_events?id=eq.'+encodeURIComponent(exists[0].id),{method:'PATCH',body:record});
-        return response?.[0] || {id:exists[0].id};
+        if(expectedRevision !== null && Number(exists[0].revision)!==Number(expectedRevision)) throw new Error('동료가 먼저 수정했어요. 서버의 최신 일정을 확인한 후 다시 편집해 주세요.');
+        return authorized('/rest/v1/rpc/sharing_update_event',{method:'POST',body:{p_event_id:exists[0].id,p_revision:exists[0].revision,p_patch:recordPatch(record)}});
       }
       const created=await authorized('/rest/v1/shared_events',{method:'POST',body:{...record,owner_id:userId}});
       if(!created?.[0]?.id)throw new Error('공유 일정 생성 결과를 확인하지 못했어요.');
@@ -132,6 +143,37 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
       return authorized('/rest/v1/rpc/remove_shared_event_member',{method:'POST',body:{p_event_id:eventId,p_user_id:userId}});
     },
     unshare:async eventId=>authorized('/rest/v1/shared_events?id=eq.'+encodeURIComponent(eventId),{method:'DELETE'}),
+    contactsList:()=>authorized('/rest/v1/sharing_contacts?select=id,nickname,email&order=nickname.asc'),
+    contactAdd:async (nickname,email)=>{
+      nickname=String(nickname||'').trim().slice(0,60);email=validateEmail(email);
+      if(!nickname)throw new Error('동료 닉네임을 입력해 주세요.');
+      const rows=await authorized('/rest/v1/sharing_contacts',{method:'POST',body:{nickname,email,owner_id:session?.user?.id}});
+      return rows?.[0];
+    },
+    contactUpdate:async(id,nickname,email)=>{
+      nickname=String(nickname||'').trim().slice(0,60);email=validateEmail(email);
+      if(!nickname)throw new Error('동료 닉네임을 입력해 주세요.');
+      return authorized('/rest/v1/sharing_contacts?id=eq.'+safeUuid(id),{method:'PATCH',body:{nickname,email}});
+    },
+    contactRemove:id=>authorized('/rest/v1/sharing_contacts?id=eq.'+safeUuid(id),{method:'DELETE'}),
+    inviteContacts:async(eventId,recipients)=>{
+      if(!Array.isArray(recipients)||recipients.length<1||recipients.length>20)throw new Error('1~20명의 동료를 선택해 주세요.');
+      return authorized('/rest/v1/rpc/sharing_invite_contacts',{method:'POST',body:{p_event_id:safeUuid(eventId),p_recipients:recipients.map(r=>({email:validateEmail(r.email),role:validateRole(r.role)}))}});
+    },
+    inbox:()=>authorized('/rest/v1/rpc/sharing_pending_invites',{method:'POST',body:{}}),
+    respond:(id,accept)=>authorized('/rest/v1/rpc/sharing_respond_invite',{method:'POST',body:{p_invite_id:safeUuid(id),p_accept:!!accept}}),
+    myRoles:()=>authorized('/rest/v1/shared_event_members?select=event_id,role,user_id'),
+    members:id=>authorized('/rest/v1/rpc/sharing_list_members',{method:'POST',body:{p_event_id:safeUuid(id)}}),
+    role:(eventId,userId,role)=>authorized('/rest/v1/rpc/sharing_set_member_role',{method:'POST',body:{p_event_id:safeUuid(eventId),p_member_id:safeUuid(userId),p_role:validateRole(role)}}),
+    editShared:(id,revision,patch)=>{
+      if(!Number.isSafeInteger(revision)||revision<1)throw new Error('일정 버전 정보가 올바르지 않습니다.');
+      const record=normalizeEvent({...patch,id:'remote-edit'});
+      return authorized('/rest/v1/rpc/sharing_update_event',{method:'POST',body:{p_event_id:safeUuid(id),p_revision:revision,p_patch:recordPatch(record)}});
+    },
+    sentInvites:id=>authorized('/rest/v1/rpc/sharing_list_sent_invites',{method:'POST',body:{p_event_id:safeUuid(id)}}),
+    cancelInvite:id=>authorized('/rest/v1/rpc/sharing_cancel_invite',{method:'POST',body:{p_invite_id:safeUuid(id)}}),
+    removeMember:(eventId,userId)=>authorized('/rest/v1/rpc/remove_shared_event_member',{method:'POST',body:{p_event_id:safeUuid(eventId),p_user_id:safeUuid(userId)}}),
+    history:id=>authorized('/rest/v1/sharing_event_history?select=action,actor_id,revision,created_at&event_id=eq.'+safeUuid(id)+'&order=id.desc&limit=20'),
     normalizeEvent
   };
 }

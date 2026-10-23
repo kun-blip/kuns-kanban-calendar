@@ -28,7 +28,7 @@ test('unauthenticated clients cannot load, publish or claim shared events',async
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'kuns-share-'));
  try {
    const cli=createSharingClient({url:config.url,publishableKey:config.publishableKey,sessionPath:path.join(dir,'auth.json'),fetchImpl:async()=>{requests++;throw Error('should not call network');}});
-   assert.deepEqual(cli.publicStatus(),{signedIn:false,email:''});
+   assert.deepEqual(cli.publicStatus(),{signedIn:false,email:'',userId:null});
    await assert.rejects(()=>cli.list(),/인증/);
    await assert.rejects(()=>cli.accept('a'.repeat(64)),/인증/);
    assert.equal(requests,0);
