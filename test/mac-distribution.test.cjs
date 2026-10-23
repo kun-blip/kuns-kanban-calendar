@@ -11,7 +11,7 @@ const html = fs.readFileSync(path.join(root,'renderer/index.html'),'utf8') + fs.
 const workflow = fs.readFileSync(path.join(root,'.github/workflows/windows-installer.yml'),'utf8');
 const { createUpdateController } = require('../desktop/update-controller.cjs');
 test('Mac and Windows artifacts share a GitHub release, Windows updater remains configured',()=>{
- assert.match(pkg.version,/^1\.8\.\d+$/);
+ assert.match(pkg.version,/^1\.(?:8|9)\.\d+$/);
  assert.equal(pkg.build.win.target[0].target,'nsis');
  assert.equal(pkg.build.mac.target[0].target,'dmg');
  assert.deepEqual(pkg.build.mac.target[0].arch,['universal']);

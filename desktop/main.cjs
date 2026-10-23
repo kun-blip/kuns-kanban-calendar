@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, Notification, nativeImage, shell, powerMonitor, screen, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, Notification, nativeImage, shell, powerMonitor, screen, session, clipboard } = require('electron');
 const { assertPayload, readText, atomicWrite, readJson, filenameStamp } = require('./data.cjs');
 const { dueEvents } = require('./reminders.cjs');
 const { snapshotDaily, dayStamp } = require('./auto-backup.cjs');
@@ -13,6 +13,8 @@ const { shouldAnnounceUpdate } = require('./update-notice.cjs');
 const { createFeedbackController } = require('./feedback.cjs');
 const { shouldShowWelcome } = require('./welcome-state.cjs');
 const { safeExternalUrl } = require('./external-url.cjs');
+const { createSharingClient, validateToken } = require('./sharing-client.cjs');
+const sharingConfig = require('./sharing-config.json');
 const feedbackConfig = require('./feedback-config.json');
 const packageJson = require('../package.json');
 const packagedReleaseConfig = require('./release-config.json');
@@ -40,6 +42,19 @@ const feedbackController = createFeedbackController({endpoint:feedbackConfig.end
 let lastNotifiedUpdateVersion = '';
 let dismissedUpdateVersionThisRun = '';
 let welcomeEligible = false;
+let queuedInviteCode = '';
+let sharingClient = null;
+function handleInviteUrl(raw) {
+  try {
+    const token = validateToken(raw);
+    queuedInviteCode = token;
+    focusWindow();
+    if (window && !window.isDestroyed() && !window.webContents.isLoading()) {
+      window.webContents.send('sharing:invite', token);
+    }
+  } catch { /* never accept arbitrary protocol payloads */ }
+}
+
 function showAvailableUpdateNotice(state) {
   if (!shouldAnnounceUpdate(state, dismissedUpdateVersionThisRun, lastNotifiedUpdateVersion)) return;
   // The in-app dialog is primary when the calendar is on screen.
@@ -208,6 +223,9 @@ function createWindow() {
   window.on('close', event => {
     if (!quitting && tray) { event.preventDefault(); window.hide(); }
   });
+  window.webContents.on('did-finish-load', () => {
+    if (queuedInviteCode) window.webContents.send('sharing:invite', queuedInviteCode);
+  });
   window.loadFile(HTML);
 }
 function updateTrayMenu() {
@@ -250,6 +268,28 @@ function secureHandle(channel, handler) {
   });
 }
 function registerIpc() {
+  const shareHandle = (channel, fn) => secureHandle('sharing:'+channel, async (_event, ...args) => {
+    if (!sharingClient) throw new Error('일정 공유 서비스를 준비하지 못했습니다.');
+    return fn(...args);
+  });
+  shareHandle('status',()=>sharingClient.publicStatus());
+  shareHandle('requestOtp',email=>sharingClient.requestOtp(email));
+  shareHandle('verifyOtp',(email,code)=>sharingClient.verifyOtp(email,code));
+  shareHandle('signOut',()=>sharingClient.signOut());
+  shareHandle('list',()=>sharingClient.list());
+  shareHandle('publish',event=>sharingClient.publish(event));
+  shareHandle('invite',id=>sharingClient.invite(id));
+  shareHandle('accept',code=>sharingClient.accept(code));
+  shareHandle('revoke',id=>sharingClient.revoke(id));
+  shareHandle('leave',id=>sharingClient.leave(id));
+  shareHandle('unshare',id=>sharingClient.unshare(id));
+  secureHandle('sharing:pendingInvite',()=>queuedInviteCode);
+  secureHandle('sharing:consumeInvite',()=>{queuedInviteCode='';return {ok:true};});
+  secureHandle('sharing:copyInvite',(_evt,code)=>{
+    const token=validateToken(code);
+    clipboard.writeText(`쿤스 칸반 캘린더 일정 초대\n앱에서 '일정 공유 → 초대 수락'을 열어 아래 링크/코드를 입력해 주세요.\nkuuns-kanban://invite/${token}\n초대 코드: ${token}\n유효 기간: 7일 · 1회 사용`);
+    return {ok:true};
+  });
   secureHandle('welcome:getState', () => ({ shouldShow: welcomeEligible }));
   secureHandle('welcome:complete', () => {
     if (!welcomeEligible) return { ok: true };
@@ -408,7 +448,9 @@ function registerIpc() {
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, commandLine) => {
+    const link=commandLine.find(x=>/^kuuns-kanban:\/\/invite\//i.test(x));
+    if(link)handleInviteUrl(link);
     focusWindow();
     // A second desktop launch should open the normal calendar, not silently
     // return to a widget that was left in the background.
@@ -418,7 +460,15 @@ else {
       window.maximize();
     }
   });
+  app.on('open-url', (event, url) => { event.preventDefault(); if (/^kuuns-kanban:\/\/invite\//i.test(url)) handleInviteUrl(url); });
   app.whenReady().then(() => {
+    if(app.isPackaged) {
+      try {app.setAsDefaultProtocolClient('kuuns-kanban');} catch(err) {console.warn('Deep link association unavailable',err);}
+    }
+    const startingLink=process.argv.find(x=>/^kuuns-kanban:\/\/invite\//i.test(x));
+    if(startingLink)handleInviteUrl(startingLink);
+    sharingClient=createSharingClient({url:sharingConfig.url,publishableKey:sharingConfig.publishableKey,
+      sessionPath:path.join(app.getPath('userData'),'sharing-auth.json')});
     // This local-only app uses native OS notifications; its web page needs no browser permissions.
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);

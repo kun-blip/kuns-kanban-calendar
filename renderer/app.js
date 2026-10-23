@@ -85,9 +85,12 @@ function closeAll(){modalOpened=false;memoOpened=false;shortcutOpened=false;rest
 function displayOverlay(){const any=modalOpened||memoOpened||shortcutOpened||restoreOpened;$('shade').hidden=!any;document.body.style.overflow=any?'hidden':'';}
 function monthWeeks(){if(data.calendarMode==='week')return [parseKey(Planner.week(selectedDate,data.weekStart))];let first=new Date(month.getFullYear(),month.getMonth(),1),last=new Date(month.getFullYear(),month.getMonth()+1,0);let start=dateAdd(first,-((first.getDay()-data.weekStart+7)%7));let weekCount=Math.ceil((Math.round((last-start)/86400000)+1)/7);return Array.from({length:weekCount},(_,i)=>dateAdd(start,7*i));}
 let filters={game:'all',status:'all',query:''};
+let sharedRemoteEvents=[];
+let sharing=null;
+function allVisibleEvents(){return data.events.concat(sharedRemoteEvents);}
 function matchingEvents(){
   const term=filters.query.trim().toLocaleLowerCase();
-  return data.events.filter(e=>{
+  return allVisibleEvents().filter(e=>{
     if(filters.game!=='all' && (filters.game==='none'?!!e.gameId:e.gameId!==filters.game))return false;
     if(filters.status!=='all' && eventStatus(e)!==filters.status)return false;
     if(!term)return true;
@@ -147,7 +150,7 @@ $('clearFilters').addEventListener('click',()=>{filters={game:'all',status:'all'
    const dates=weekly?Array.from({length:7},(_,i)=>dateAdd(now,-((now.getDay()-data.weekStart+7)%7)+i)):Array.from({length:offset+end},(_,i)=>i<offset?null:new Date(y,m,i-offset+1));
    for(const d of dates){if(!d){grid.appendChild(document.createElement('span'));continue;}
      const key=toDateKey(d),b=document.createElement('button');b.type='button';b.textContent=d.getDate();b.className='mini-day'+(key===todayKey?' today':'')+(key===selectedDate?' selected':'')+(d.getMonth()!==m?' outside':'');
-     if(Planner.expand(data.events,key,key).length)b.classList.add('has-event');
+     if(Planner.expand(allVisibleEvents(),key,key).length)b.classList.add('has-event');
      b.title=key+' 날짜 보기';b.addEventListener('click',()=>{selectedDate=key;month=new Date(d.getFullYear(),d.getMonth(),1);setWidgetMode(false);renderCalendar();});grid.appendChild(b);
    }
   }
@@ -157,7 +160,7 @@ $('clearFilters').addEventListener('click',()=>{filters={game:'all',status:'all'
  const key=toDateKey(todayDate),weekLater=toDateKey(dateAdd(todayDate,7));
    renderWidgetTodo();renderWidgetMini();
   $('widgetDate').textContent=`${todayDate.getFullYear()}년 ${todayDate.getMonth()+1}월 ${todayDate.getDate()}일`;
- const relevant=Planner.expand(data.events,key,weekLater).filter(e=>eventStatus(e)!=='done');
+ const relevant=Planner.expand(allVisibleEvents(),key,weekLater).filter(e=>eventStatus(e)!=='done');
  const current=relevant.filter(e=>e.start<=key&&e.end>=key).sort((a,b)=>a.start.localeCompare(b.start));
  const upcoming=relevant.filter(e=>e.start>key&&e.start<=weekLater).sort((a,b)=>a.start.localeCompare(b.start));
  $('widgetTodayCount').textContent=current.length+'개';
@@ -256,7 +259,7 @@ function makeSegments(weekStart){
  // Timeline cells include Mon..Fri, regardless of chosen week start.
  // Weekends stay in the saved start/end dates but are visually skipped.
  const allowed=new Set(matchingEvents().map(e=>e.id));
-  const segs=Planner.expand(data.events,start,end).filter(e=>allowed.has(e.id)).map(e=>{
+  const segs=Planner.expand(allVisibleEvents(),start,end).filter(e=>allowed.has(e.id)).map(e=>{
    const st=e.start<start?start:e.start,en=e.end>end?end:e.end;
    const first=Math.round((parseKey(st)-weekStart)/86400000),last=Math.round((parseKey(en)-weekStart)/86400000);
    const [firstWorkday,lastWorkday]=Planner.workdayBounds(data.weekStart);const startIndex=Math.max(firstWorkday,first),endIndex=Math.min(lastWorkday,last);
@@ -273,7 +276,7 @@ function renderCalendar(){
  const mEnd=weekMode?Planner.add(mStart,6):toDateKey(new Date(month.getFullYear(),month.getMonth()+1,0));
  $('monthLabel').textContent=weekMode?`${fmtDate(mStart)} ~ ${fmtDate(mEnd)}`:`${month.getFullYear()}년 ${month.getMonth()+1}월`;
  $('monthMode').classList.toggle('selected',!weekMode);$('weekMode').classList.toggle('selected',weekMode);
- const visible=Planner.expand(data.events,mStart,mEnd);const allowed=new Set(matchingEvents().map(e=>e.id));const showing=visible.filter(e=>allowed.has(e.id));
+ const visible=Planner.expand(allVisibleEvents(),mStart,mEnd);const allowed=new Set(matchingEvents().map(e=>e.id));const showing=visible.filter(e=>allowed.has(e.id));
  $('monthSummary').textContent=`${weekMode?'이번 주':'이번 달'} 일정 ${visible.length}개 · 표시 ${showing.length}개 · 완료 ${visible.filter(e=>eventStatus(e)==='done').length}개`;
  const compact=data.view==='compact';$('compactBtn').classList.toggle('selected',compact);$('detailBtn').classList.toggle('selected',!compact);
  $('weekStartSelect').value=String(data.weekStart);
@@ -300,7 +303,7 @@ for(const weekStart of monthWeeks()){
      const g=gameById(s.e.gameId);const src=gameIcon(g);if(src){const pic=document.createElement('img');pic.className='event-game-icon';pic.src=src;pic.alt='';pic.setAttribute('aria-hidden','true');block.appendChild(pic);} const name=document.createElement('span');name.className='event-label';name.textContent=s.e.title;block.appendChild(name);const duration=workdayCount(s.e.start,s.e.end);if(duration>1){const days=document.createElement('span');days.className='event-duration';days.textContent=`(${duration}일)`;block.appendChild(days);}if(s.e.checklist?.length){const progress=document.createElement('span');progress.className='event-check-progress';progress.textContent=s.e.checklist.filter(c=>c.done).length+'/'+s.e.checklist.length;progress.title='작업 체크리스트 진행률';block.appendChild(progress);}
      if(s.e.url){const g=document.createElement('span');g.className='link-glyph';g.textContent='↗';block.appendChild(g);}
      block.addEventListener('click',()=>{if(Date.now()-lastDragAt<400)return;openEvent(s.e.id);});
-     if(s.e.isOccurrence){block.title+='\n반복 일정은 편집창에서 전체 반복을 수정하세요.';}else{
+     if(s.e.remoteReadOnly){block.title+='\n동료가 공유한 읽기 전용 일정입니다.';}else if(s.e.isOccurrence){block.title+='\n반복 일정은 편집창에서 전체 반복을 수정하세요.';}else{
        let finalVisible=s.e.end;
    for(let back=0;back<7;back++){const weekday=parseKey(finalVisible).getDay();if(weekday>0&&weekday<6)break;finalVisible=Planner.add(finalVisible,-1);}
    if(finalVisible===toDateKey(dateAdd(weekStart,s.endIndex))){const grip=document.createElement('span');grip.className='resize-grip';grip.title='드래그하여 종료일 변경';block.appendChild(grip);}
@@ -315,7 +318,7 @@ for(const weekStart of monthWeeks()){
  let lastDragAt=0;const dragUndo=[];function clearDragUndo(){dragUndo.length=0;$('undoTimeline').disabled=true;}
  function selectDate(key){selectedDate=key;month=new Date(parseKey(key).getFullYear(),parseKey(key).getMonth(),1);renderCalendar();}
  function renderDayPanel(){
-  const k=selectedDate,d=parseKey(k),events=Planner.expand(data.events,k,k).filter(e=>matchingEvents().some(f=>f.id===e.id));
+  const k=selectedDate,d=parseKey(k),events=Planner.expand(allVisibleEvents(),k,k).filter(e=>matchingEvents().some(f=>f.id===e.id));
   $('dayPanelTitle').textContent=`${d.getMonth()+1}월 ${d.getDate()}일 · ${['일','월','화','수','목','금','토'][d.getDay()]}요일`;
   $('dayPanelSummary').textContent=`이날 관련된 작업 ${events.length}개 · 날짜 선택은 한 번 클릭, 일정 추가는 아래 버튼`;
   const list=$('dayEventList');list.replaceChildren();
@@ -356,7 +359,7 @@ for(const weekStart of monthWeeks()){
    const original=data.events.find(x=>x.id===event.id);if(!original)return;
    original.start=newStart;original.end=newEnd;
    if(!isResize&&original.reminderAt)original.reminderAt=Planner.add(original.reminderAt.slice(0,10),delta)+original.reminderAt.slice(10);
-   lastDragAt=Date.now();$('undoTimeline').disabled=false;save();renderCalendar();notify(isResize?'종료일을 변경했어요. ↶ 실행 취소 가능':'일정을 이동했어요. ↶ 실행 취소 가능');
+   lastDragAt=Date.now();$('undoTimeline').disabled=false;save();void sharing?.syncEditedEvent(original);renderCalendar();notify(isResize?'종료일을 변경했어요. ↶ 실행 취소 가능':'일정을 이동했어요. ↶ 실행 취소 가능');
   }
   function cancel(){window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);block.classList.remove('dragging');block.style.removeProperty('transform');block.style.removeProperty('width');}
   window.addEventListener('pointermove',move);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',cancel,{once:true});
@@ -476,14 +479,14 @@ if(!DESKTOP)document.addEventListener('visibilitychange',()=>{if(!document.hidde
  function addEventChecklist(){const input=$('eventChecklistInput');const text=input.value.trim();if(!text||editingChecklist.length>=120)return;editingChecklist.push({id:uid(),text:text.slice(0,160),done:false});input.value='';renderEventChecklist();input.focus();}
  $('addChecklist').addEventListener('click',addEventChecklist);
  $('eventChecklistInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addEventChecklist();}});
- function openEvent(id=null,key=selectedDate){editingId=id;const e=data.events.find(v=>v.id===id);selectedDate=e?e.start:key;selectedColor=allowedColor(e?.color||COLORS[0]);$('modalTitle').textContent=e?'일정 수정':'새 일정';renderGameSelect(e?e.gameId:'randomdice2');$('gameCreator').hidden=true;$('eventTitle').value=e?.title||'';$('startDate').value=e?.start||key;$('endDate').value=e?.end||key;$('eventDescription').value=e?.description||'';$('eventUrl').value=e?.url||'';$('eventStatus').value=e?eventStatus(e):'todo';$('eventRecurrence').value=e?.recurrence||'none';$('eventRecurrenceUntil').value=e?.recurrenceUntil||'';editingChecklist=cleanChecklist(e?.checklist);$('eventChecklistInput').value='';renderEventChecklist();updateRecurrenceHint();setReminderFields(e?.reminderAt||'');$('deleteEvent').hidden=!e;$('duplicateEvent').hidden=!e;$('newEventHint').hidden=!!e;
+ function openEvent(id=null,key=selectedDate){if(id && id.startsWith('shared:')){sharing?.openRemote(id);return;}editingId=id;const e=data.events.find(v=>v.id===id);selectedDate=e?e.start:key;selectedColor=allowedColor(e?.color||COLORS[0]);$('modalTitle').textContent=e?'일정 수정':'새 일정';renderGameSelect(e?e.gameId:'randomdice2');$('gameCreator').hidden=true;$('eventTitle').value=e?.title||'';$('startDate').value=e?.start||key;$('endDate').value=e?.end||key;$('eventDescription').value=e?.description||'';$('eventUrl').value=e?.url||'';$('eventStatus').value=e?eventStatus(e):'todo';$('eventRecurrence').value=e?.recurrence||'none';$('eventRecurrenceUntil').value=e?.recurrenceUntil||'';editingChecklist=cleanChecklist(e?.checklist);$('eventChecklistInput').value='';renderEventChecklist();updateRecurrenceHint();setReminderFields(e?.reminderAt||'');$('deleteEvent').hidden=!e;$('duplicateEvent').hidden=!e;$('shareEvent').hidden=!e||!DESKTOP?.sharingPublish;$('newEventHint').hidden=!!e;
 $('eventLinkWrap').hidden=!e?.url;if(e?.url)$('eventOpenLink').href=e.url;renderColors();memoOpened=false;$('memoDrawer').hidden=true;shortcutOpened=false;$('shortcutModal').hidden=true;modalOpened=true;$('eventModal').hidden=false;displayOverlay();renderCalendar();setTimeout(()=>$('eventTitle').focus(),50);}
 function updateRecurrenceHint(){const value=$('eventRecurrence').value;$('recurrenceUntilWrap').hidden=value==='none';$('recurrenceHint').textContent=value==='none'?'반복하지 않는 단일 일정입니다.':'주간·월간 반복은 일정 하나로 저장되며 반복 종료일을 설정해야 합니다.';}
 $('eventRecurrence').addEventListener('change',updateRecurrenceHint);
 function closeEvent(){modalOpened=false;$('eventModal').hidden=true;displayOverlay();renderCalendar();}
-$('eventForm').addEventListener('submit',ev=>{ev.preventDefault();const title=$('eventTitle').value.trim(),start=$('startDate').value,end=$('endDate').value,rawLink=$('eventUrl').value.trim(),url=safeLink(rawLink);if(!title){notify('일정 제목을 입력해 주세요.');$('eventTitle').focus();return;}if(!parseKey(start)||!parseKey(end)||start>end){notify('종료일은 시작일과 같거나 뒤여야 해요.');return;}if(rawLink&&!url){notify('링크는 http:// 또는 https:// 주소여야 해요.');$('eventUrl').focus();return;}const record={id:editingId||uid(),title,start,end,color:allowedColor(selectedColor),description:$('eventDescription').value.trim(),url,completed:$('eventStatus').value==='done',status:$('eventStatus').value,gameId:$('gameSelect').value,reminderAt:$('eventReminderOn').checked?computeReminderAt():'',recurrence:$('eventRecurrence').value,recurrenceUntil:$('eventRecurrence').value==='none'?'':$('eventRecurrenceUntil').value,checklist:cleanChecklist(editingChecklist)};if(record.recurrence!=='none'&&(!parseKey(record.recurrenceUntil)||record.recurrenceUntil<record.start)){notify('반복 종료일을 시작일 이후로 지정해 주세요.');return;}if($('eventReminderOn').checked&&(!record.reminderAt||!Number.isFinite(new Date(record.reminderAt).getTime()))){notify('알림 날짜와 시간을 확인해 주세요.');return;}clearDragUndo();if(editingId){const i=data.events.findIndex(e=>e.id===editingId);if(i<0)return;data.events[i]=record;}else data.events.push(record);selectedDate=start;month=new Date(parseKey(start).getFullYear(),parseKey(start).getMonth(),1);save();closeEvent();checkReminders();notify(editingId?'일정을 수정했어요.':'일정을 추가했어요.');});
+$('eventForm').addEventListener('submit',ev=>{ev.preventDefault();const title=$('eventTitle').value.trim(),start=$('startDate').value,end=$('endDate').value,rawLink=$('eventUrl').value.trim(),url=safeLink(rawLink);if(!title){notify('일정 제목을 입력해 주세요.');$('eventTitle').focus();return;}if(!parseKey(start)||!parseKey(end)||start>end){notify('종료일은 시작일과 같거나 뒤여야 해요.');return;}if(rawLink&&!url){notify('링크는 http:// 또는 https:// 주소여야 해요.');$('eventUrl').focus();return;}const record={id:editingId||uid(),title,start,end,color:allowedColor(selectedColor),description:$('eventDescription').value.trim(),url,completed:$('eventStatus').value==='done',status:$('eventStatus').value,gameId:$('gameSelect').value,reminderAt:$('eventReminderOn').checked?computeReminderAt():'',recurrence:$('eventRecurrence').value,recurrenceUntil:$('eventRecurrence').value==='none'?'':$('eventRecurrenceUntil').value,checklist:cleanChecklist(editingChecklist)};if(record.recurrence!=='none'&&(!parseKey(record.recurrenceUntil)||record.recurrenceUntil<record.start)){notify('반복 종료일을 시작일 이후로 지정해 주세요.');return;}if($('eventReminderOn').checked&&(!record.reminderAt||!Number.isFinite(new Date(record.reminderAt).getTime()))){notify('알림 날짜와 시간을 확인해 주세요.');return;}clearDragUndo();if(editingId){const i=data.events.findIndex(e=>e.id===editingId);if(i<0)return;data.events[i]=record;}else data.events.push(record);selectedDate=start;month=new Date(parseKey(start).getFullYear(),parseKey(start).getMonth(),1);save();if(editingId)void sharing?.syncEditedEvent(record);closeEvent();checkReminders();notify(editingId?'일정을 수정했어요.':'일정을 추가했어요.');});
 $('duplicateEvent').addEventListener('click',()=>{if(!editingId)return;const e=data.events.find(x=>x.id===editingId);if(!e)return;const copy={...e,id:uid(),title:e.title+' (복사)',reminderAt:'',checklist:cleanChecklist(e.checklist).map(c=>({...c,id:uid()}))};data.events.push(copy);clearDragUndo();save();closeEvent();renderCalendar();notify('일정을 복제했어요. 알림은 복제되지 않습니다.');});
-$('deleteEvent').addEventListener('click',()=>{if(!editingId||!confirm('이 일정을 삭제할까요?'))return;data.events=data.events.filter(e=>e.id!==editingId);clearDragUndo();save();closeEvent();notify('일정을 삭제했어요.');});
+$('deleteEvent').addEventListener('click',()=>{if(!editingId||!confirm('이 일정을 삭제할까요?'))return;const removedId=editingId;data.events=data.events.filter(e=>e.id!==editingId);clearDragUndo();save();void sharing?.handleLocalDelete(removedId);closeEvent();notify('일정을 삭제했어요.');});
 $('eventUrl').addEventListener('input',()=>{$('eventLinkWrap').hidden=true;});
 $('closeEvent').addEventListener('click',closeEvent);$('cancelEvent').addEventListener('click',closeEvent);
 function renderPinnedNotes(){
@@ -666,5 +669,15 @@ window.addEventListener('pointerdown',event=>{
 })();
 
 
+// v1.9.0: encrypted transport through the Electron main process; never upload private calendar data automatically.
+if(DESKTOP?.sharingStatus){
+  sharing=window.KuunsSharing.createSharingUI({bridge:DESKTOP,
+    getEvent:id=>data.events.find(e=>e.id===id),getEvents:()=>data.events,
+    onRemoteEvents:items=>{sharedRemoteEvents=items;renderCalendar();renderWidget();},notify});
+  $('sharingLaunch').addEventListener('click',()=>{closeAll();sharing.open();});
+  $('shareEvent').addEventListener('click',()=>{
+    const target=editingId;closeEvent();sharing.open(target);
+  });
+}else $('sharingLaunch').hidden=true;
 if(removedPersonalPreset)save(); // One-time precise migration, preserving other entries.
 })();

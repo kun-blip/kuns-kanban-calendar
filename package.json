@@ -1,8 +1,8 @@
 {
   "name": "kuuns-kanban-calendar",
   "productName": "쿤스 칸반 캘린더",
-  "version": "1.8.4",
-  "description": "로컬 저장 기반 Windows/macOS 작업 타임라인 캘린더",
+  "version": "1.9.0",
+  "description": "로컬 저장 기반 Windows/macOS 작업 캘린더 및 선택 일정 공유",
   "private": true,
   "main": "desktop/main.cjs",
   "author": "KUN'S KANBAN CALENDAR",
@@ -77,7 +77,15 @@
       "extendInfo": {
         "CFBundleDisplayName": "쿤스 칸반 캘린더"
       }
-    }
+    },
+    "protocols": [
+      {
+        "name": "KUNS KANBAN Calendar Invitation",
+        "schemes": [
+          "kuuns-kanban"
+        ]
+      }
+    ]
   },
   "dependencies": {
     "electron-updater": "6.8.10"
