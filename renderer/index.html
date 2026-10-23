@@ -369,6 +369,30 @@ html[data-theme=dark] .welcome-logo{filter:invert(1)}
 .welcome-status{color:#cf4565;font-size:11px;min-height:0;margin:7px 0 0}
 .welcome-help-btn{padding:0 10px}
 @media(max-width:620px){.welcome-dialog{padding:26px 21px 23px}.welcome-logo{height:75px;width:92px}.welcome-title{font-size:21px}.welcome-help-btn span:not([aria-hidden="true"]){display:none}}
+
+/* v1.8.1: configurable week start and shared Daily Todo surface */
+.week-start-control{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:11px;font-weight:700;color:var(--muted)}
+.week-start-control select{border:1px solid var(--line-strong);border-radius:9px;padding:8px 9px;min-height:34px;background:var(--surface);color:var(--text);font-size:12px;font-weight:650;max-width:142px}
+.weekday.is-sunday{color:#d57f8b}
+.weekday.is-saturday{color:#6583c4}
+.weekday:not(.is-sunday):not(.is-saturday){color:#7d8798}
+html[data-theme=dark] .weekday.is-sunday{color:#ee97a9!important}
+html[data-theme=dark] .weekday.is-saturday{color:#84a6ed!important}
+html[data-theme=dark] .weekday:not(.is-sunday):not(.is-saturday){color:#b6c1d8!important}
+.main-todo-panel{margin-top:auto;padding:17px 14px 15px;border:1px solid var(--line);border-radius:15px;background:var(--surface);box-shadow:var(--shadow);min-width:0}
+.main-todo-head{display:flex;align-items:center;justify-content:space-between;gap:9px;margin:0 0 10px}
+.main-todo-head h2{font-size:13px;letter-spacing:-.1px;font-weight:770;margin:0;color:var(--text)}
+.main-todo-head span{font-size:11px;color:var(--muted);font-weight:650}
+.main-todo-panel .widget-todo-list{max-height:270px;overflow-y:auto}
+.main-todo-panel .widget-todo-form input{background:var(--surface);min-width:0}
+.widget-todo-edit,.widget-todo-save,.widget-todo-cancel{flex:0 0 auto;min-width:24px;min-height:26px;border:0;background:transparent;color:#7182a2;border-radius:6px;font-size:13px;display:grid;place-items:center;padding:2px 4px}
+.widget-todo-edit:hover,.widget-todo-save:hover,.widget-todo-cancel:hover{background:#e8eeff;color:#465ad5}
+.widget-todo-remove{flex:0 0 auto;min-width:20px;min-height:24px}
+.widget-todo-row .widget-todo-edit-input{flex:1;width:0;min-width:0;border:1px solid #aab7ea;border-radius:7px;font-size:11px;padding:6px 7px;background:white;color:#34445e}
+html[data-theme=dark] .main-todo-panel{background:#1c2230;border-color:#343e52;box-shadow:none}
+html[data-theme=dark] .widget-todo-edit,html[data-theme=dark] .widget-todo-save,html[data-theme=dark] .widget-todo-cancel{color:#b4c2df}
+@media(max-width:920px){.main-todo-panel{margin-top:0}}
+@media(max-width:680px){.week-start-control{margin-right:auto}.week-start-control select{max-width:135px}.main-todo-panel{padding:14px 12px}}
 </style>
 </head>
 <body>
@@ -384,14 +408,14 @@ html[data-theme=dark] .welcome-logo{filter:invert(1)}
   </section>
   <div class="workspace">
   <main class="calendar-section">
-    <div class="cal-head"><div><div class="calendar-title"><div class="month-controls"><button class="btn icon-only ghost" id="prevMonth" aria-label="이전 달"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><h1 class="main-heading" id="monthLabel">2026년 10월</h1><button class="btn icon-only ghost" id="nextMonth" aria-label="다음 달"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button></div><button class="btn sm today-btn" id="todayBtn">오늘</button></div><div class="cal-sub" id="monthSummary">날짜를 선택해 일정을 등록하세요</div></div><div class="calendar-tools"><div class="segmented" role="group" aria-label="월간 또는 주간 보기"><button id="monthMode" class="selected" type="button">월간</button><button id="weekMode" type="button">주간</button></div><button id="undoTimeline" class="btn sm" type="button" disabled title="최근 드래그 변경 취소 (Ctrl+Z)">↶ 실행 취소</button><div class="segmented" role="group" aria-label="캘린더 보기 형식"><button data-view="compact" class="selected" id="compactBtn">간략히 보기</button><button data-view="detail" id="detailBtn">자세히 보기</button></div><button class="btn primary" id="addEventBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>새 일정</button></div></div>
+    <div class="cal-head"><div><div class="calendar-title"><div class="month-controls"><button class="btn icon-only ghost" id="prevMonth" aria-label="이전 달"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><h1 class="main-heading" id="monthLabel">2026년 10월</h1><button class="btn icon-only ghost" id="nextMonth" aria-label="다음 달"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button></div><button class="btn sm today-btn" id="todayBtn">오늘</button></div><div class="cal-sub" id="monthSummary">날짜를 선택해 일정을 등록하세요</div></div><div class="calendar-tools"><label class="week-start-control" for="weekStartSelect">주 시작 <select id="weekStartSelect" aria-label="일주일의 시작 요일 선택"><option value="0">일요일</option><option value="1">월요일</option></select></label><div class="segmented" role="group" aria-label="월간 또는 주간 보기"><button id="monthMode" class="selected" type="button">월간</button><button id="weekMode" type="button">주간</button></div><button id="undoTimeline" class="btn sm" type="button" disabled title="최근 드래그 변경 취소 (Ctrl+Z)">↶ 실행 취소</button><div class="segmented" role="group" aria-label="캘린더 보기 형식"><button data-view="compact" class="selected" id="compactBtn">간략히 보기</button><button data-view="detail" id="detailBtn">자세히 보기</button></div><button class="btn primary" id="addEventBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>새 일정</button></div></div>
     <div class="calendar-filters" role="search" aria-label="일정 필터와 검색">
       <div class="filter-select-group"><label for="filterGame">게임</label><select id="filterGame" aria-label="게임 타이틀로 필터"><option value="all">전체 게임</option></select></div>
       <div class="filter-select-group"><label for="filterStatus">상태</label><select id="filterStatus" aria-label="작업 진행 상태로 필터"><option value="all">전체 상태</option><option value="todo">예정</option><option value="doing">진행</option><option value="done">완료</option></select></div>
       <label class="filter-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.7" cy="10.7" r="6.8"/><path d="m16 16 5 5"/></svg><input type="search" id="filterSearch" maxlength="120" placeholder="제목 · 메모 · 게임 검색" aria-label="일정 검색"/></label>
       <button type="button" id="clearFilters" class="btn sm filter-reset" title="검색과 필터 초기화">초기화</button>
     </div>
-    <div class="weekdays" aria-hidden="true"><div class="weekday">일요일</div><div class="weekday">월요일</div><div class="weekday">화요일</div><div class="weekday">수요일</div><div class="weekday">목요일</div><div class="weekday">금요일</div><div class="weekday">토요일</div></div>
+    <div class="weekdays" id="weekdayHeaders" aria-hidden="true"></div>
     <div id="calendar" aria-label="월간 타임라인 캘린더"></div>
     <section class="day-panel" id="dayPanel" aria-label="선택한 날짜의 일정"><div class="day-panel-head"><div><strong id="dayPanelTitle">오늘 할 일</strong><p id="dayPanelSummary">날짜를 선택하세요</p></div><button type="button" class="btn sm primary" id="addSelectedDay">+ 이 날짜에 일정 추가</button></div><div class="day-event-list" id="dayEventList"></div></section>
     <footer class="month-footer"><span class="footer-dots"><i class="live-dot" aria-hidden="true"></i><span id="saveState">이 PC에 자동 저장됨</span></span><button type="button" id="autoBackupOpen" class="auto-backup-link" title="자동 백업 폴더 열기">자동 백업 확인 중…</button></footer>
@@ -407,6 +431,11 @@ html[data-theme=dark] .welcome-logo{filter:invert(1)}
     <div class="pinned-help"><span>✦</span> 메모장에서 <b>오른쪽에 고정</b>을 켜면 바로 표시돼요.</div>
   </aside>
   <div class="quick-section"><div class="quick-header"><span>QUICK LINKS</span><button id="manageShortcuts" class="btn sm ghost" type="button">편집</button></div><nav class="quick-links" id="quickLinks" aria-label="바로가기 링크"></nav><p class="quick-hint" id="shortcutHint">빈 칸의 + 버튼을 눌러 링크를 추가하세요.</p></div>
+  <section class="main-todo-panel" aria-labelledby="mainTodoTitle">
+    <div class="main-todo-head"><h2 id="mainTodoTitle">Daily Todo</h2><span id="mainTodoCount">0/0</span></div>
+    <form id="mainTodoForm" class="widget-todo-form"><input id="mainTodoInput" type="text" maxlength="140" placeholder="할 일 추가..." aria-label="할 일 입력" required/><button type="submit" class="btn sm primary" aria-label="Todo 등록">+</button></form>
+    <div class="widget-todo-list" id="mainTodoList" aria-live="polite"></div>
+  </section>
   </div>
   </div>
   <div class="bottom-hint"><p>날짜 한 번 클릭 → 새 일정 등록 &nbsp;·&nbsp; 블록 클릭 → 수정 &nbsp;·&nbsp; 타임라인은 주말을 건너뛰며 시작·종료일은 유지됩니다</p><p>중요한 내용은 <strong>백업 폴더 지정</strong> 후 백업 저장을 눌러 보관하세요.</p></div>
@@ -480,11 +509,13 @@ html[data-theme=dark] .welcome-logo{filter:invert(1)}
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script src="./planner.js"></script>
+<script src="./todos.js"></script>
 <script>
 (() => {
 'use strict';
  const KEY='moa_timeline_calendar_v1';
  const Planner=window.KuunsPlanner;
+ const TodoOps=window.KuunsTodos;
  const DESKTOP=window.kuunsDesktop||null;
 const DEFAULT_GAME_ICON='data:image/webp;base64,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';
  const STATUS_VALUES=['todo','doing','done'];
@@ -506,7 +537,7 @@ const safeLink=v=>{if(typeof v!=='string'||!v.trim())return '';let input=v.trim(
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const workdayCount=(start,end)=>{const a=parseKey(start),b=parseKey(end);if(!a||!b||b<a)return 0;const days=Math.round((Date.UTC(b.getFullYear(),b.getMonth(),b.getDate())-Date.UTC(a.getFullYear(),a.getMonth(),a.getDate()))/86400000)+1;let result=Math.floor(days/7)*5;for(let i=0;i<days%7;i++){const day=(a.getDay()+i)%7;if(day!==0&&day!==6)result++;}return result;};
 const fmtDate=k=>{const d=parseKey(k);return d?`${d.getMonth()+1}월 ${d.getDate()}일`:k;};
-const sampleData=()=>{let y=today.getFullYear(),m=today.getMonth();const dt=d=>toDateKey(new Date(y,m,d));return{version:11,theme:'light',widgetCalendarMode:'month',calendarMode:'month',notificationsEnabled:true,recentColors:[],todos:[],events:[
+const sampleData=()=>{let y=today.getFullYear(),m=today.getMonth();const dt=d=>toDateKey(new Date(y,m,d));return{version:11,theme:'light',widgetCalendarMode:'month',calendarMode:'month',weekStart:0,notificationsEnabled:true,recentColors:[],todos:[],events:[
 {id:uid(),title:'예시 · 프로모션 영상 제작',start:dt(3),end:dt(8),color:COLORS[0],description:'날짜를 클릭하거나 이 블록을 눌러 원하는 일정으로 수정해보세요.',url:'',completed:false},
 {id:uid(),title:'예시 · 콘텐츠 디자인 검수',start:dt(13),end:dt(16),color:COLORS[1],description:'가로로 이어지는 타임라인 블록 예시입니다.',url:'',completed:false},
 {id:uid(),title:'예시 · 마감 및 피드백',start:dt(22),end:dt(24),color:COLORS[4],description:'예시 일정은 편집하거나 삭제할 수 있습니다.',url:'',completed:false}
@@ -532,11 +563,12 @@ function normalizedShortcuts(value){
  return result;
 }
 const PLATFORM=DESKTOP?.platform==='darwin'?'macOS':'Windows';
-let data,toastTimer=null;try{const stored=DESKTOP?DESKTOP.readData():localStorage.getItem(KEY);if(stored){const parsed=JSON.parse(stored);data={version:11,theme:parsed.theme==='dark'?'dark':'light',widgetCalendarMode:parsed.widgetCalendarMode==='week'?'week':'month',calendarMode:parsed.calendarMode==='week'?'week':'month',notificationsEnabled:parsed.notificationsEnabled!==false,recentColors:(Array.isArray(parsed.recentColors)?parsed.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS),todos:(Array.isArray(parsed.todos)?parsed.todos:[]).map(cleanTodo).filter(Boolean),events:(Array.isArray(parsed.events)?parsed.events:[]).map(cleanEvent).filter(Boolean),notes:(Array.isArray(parsed.notes)?parsed.notes:[]).map(cleanNote).filter(Boolean),view:parsed.view==='detail'?'detail':'compact',shortcuts:normalizedShortcuts(parsed.shortcuts),widgetMode:!!parsed.widgetMode,games:(Array.isArray(parsed.games)?parsed.games:defaultGames()).map(cleanGame).filter(Boolean)};}else{data=sampleData();if(DESKTOP)DESKTOP.saveData(JSON.stringify(data)).catch(()=>notify('저장에 실패했어요.'));else localStorage.setItem(KEY,JSON.stringify(data));}}catch(e){data=sampleData();notify('저장소를 읽지 못했어요. 백업 파일을 사용해 복원할 수 있어요.');}
+let data,toastTimer=null;try{const stored=DESKTOP?DESKTOP.readData():localStorage.getItem(KEY);if(stored){const parsed=JSON.parse(stored);data={version:11,theme:parsed.theme==='dark'?'dark':'light',widgetCalendarMode:parsed.widgetCalendarMode==='week'?'week':'month',calendarMode:parsed.calendarMode==='week'?'week':'month',weekStart:parsed.weekStart===1?1:0,notificationsEnabled:parsed.notificationsEnabled!==false,recentColors:(Array.isArray(parsed.recentColors)?parsed.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS),todos:(Array.isArray(parsed.todos)?parsed.todos:[]).map(cleanTodo).filter(Boolean),events:(Array.isArray(parsed.events)?parsed.events:[]).map(cleanEvent).filter(Boolean),notes:(Array.isArray(parsed.notes)?parsed.notes:[]).map(cleanNote).filter(Boolean),view:parsed.view==='detail'?'detail':'compact',shortcuts:normalizedShortcuts(parsed.shortcuts),widgetMode:!!parsed.widgetMode,games:(Array.isArray(parsed.games)?parsed.games:defaultGames()).map(cleanGame).filter(Boolean)};}else{data=sampleData();if(DESKTOP)DESKTOP.saveData(JSON.stringify(data)).catch(()=>notify('저장에 실패했어요.'));else localStorage.setItem(KEY,JSON.stringify(data));}}catch(e){data=sampleData();notify('저장소를 읽지 못했어요. 백업 파일을 사용해 복원할 수 있어요.');}
   data.theme=data.theme==='dark'?'dark':'light';data.widgetCalendarMode=data.widgetCalendarMode==='week'?'week':'month';data.notificationsEnabled=data.notificationsEnabled!==false;data.recentColors=(Array.isArray(data.recentColors)?data.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS);
   data.shortcuts=normalizedShortcuts(data.shortcuts);
  data.todos=Array.isArray(data.todos)?data.todos:[];
  data.calendarMode=data.calendarMode==='week'?'week':'month';
+ data.weekStart=data.weekStart===1?1:0;
 data.widgetMode=DESKTOP?false:!!data.widgetMode; // Always start a desktop app in normal calendar mode.
 const gameById=id=>data.games.find(g=>g.id===id);
  const gameIcon=game=>game?.icon||(game?.id==='randomdice2'?DEFAULT_GAME_ICON:'');
@@ -549,7 +581,7 @@ function notify(message){const el=$('toast');el.textContent=message;el.classList
  $('autostartToggle').addEventListener('click',async()=>{if(!DESKTOP?.setAutostart)return;try{const prev=await DESKTOP.getAutostart();const next=await DESKTOP.setAutostart(!prev.enabled);await renderAutostart();notify(next.enabled?PLATFORM+' 시작 시 자동 실행을 켰어요.':PLATFORM+' 시작 시 자동 실행을 껐어요.');}catch{notify('자동 실행 설정을 변경하지 못했어요.');}});
  renderAutostart();
 function save(){
-  try{renderWidget();
+  try{renderMainTodo();renderWidget();
     const json=JSON.stringify(data);
     if(DESKTOP){
       $('saveState').textContent='PC에 저장 중…';
@@ -560,7 +592,7 @@ function save(){
 }
 function closeAll(){modalOpened=false;memoOpened=false;shortcutOpened=false;restoreOpened=false;$('eventModal').hidden=true;$('memoDrawer').hidden=true;$('shortcutModal').hidden=true;$('restoreModal').hidden=true;$('shade').hidden=true;document.body.style.overflow='';}
 function displayOverlay(){const any=modalOpened||memoOpened||shortcutOpened||restoreOpened;$('shade').hidden=!any;document.body.style.overflow=any?'hidden':'';}
-function monthWeeks(){if(data.calendarMode==='week')return [parseKey(Planner.week(selectedDate))];let first=new Date(month.getFullYear(),month.getMonth(),1),last=new Date(month.getFullYear(),month.getMonth()+1,0);let sunday=dateAdd(first,-first.getDay());let weekCount=Math.ceil((Math.round((last-sunday)/86400000)+1)/7);return Array.from({length:weekCount},(_,i)=>dateAdd(sunday,7*i));}
+function monthWeeks(){if(data.calendarMode==='week')return [parseKey(Planner.week(selectedDate,data.weekStart))];let first=new Date(month.getFullYear(),month.getMonth(),1),last=new Date(month.getFullYear(),month.getMonth()+1,0);let start=dateAdd(first,-((first.getDay()-data.weekStart+7)%7));let weekCount=Math.ceil((Math.round((last-start)/86400000)+1)/7);return Array.from({length:weekCount},(_,i)=>dateAdd(start,7*i));}
 let filters={game:'all',status:'all',query:''};
 function matchingEvents(){
   const term=filters.query.trim().toLocaleLowerCase();
@@ -585,28 +617,43 @@ $('filterGame').addEventListener('change',e=>{filters.game=e.target.value;render
 $('filterStatus').addEventListener('change',e=>{filters.status=e.target.value;renderCalendar();});
 $('filterSearch').addEventListener('input',e=>{filters.query=e.target.value;renderCalendar();});
 $('clearFilters').addEventListener('click',()=>{filters={game:'all',status:'all',query:''};$('filterGame').value='all';$('filterStatus').value='all';$('filterSearch').value='';renderCalendar();});
- function renderWidgetTodo(){
-  const list=$('widgetTodoList');list.replaceChildren();
-  $('widgetTodoCount').textContent=data.todos.filter(x=>x.done).length+'/'+data.todos.length;
+ function renderTodoInto(listId,countId){
+  const list=$(listId);list.replaceChildren();
+  $(countId).textContent=data.todos.filter(x=>x.done).length+'/'+data.todos.length;
   for(const task of data.todos){
     const row=document.createElement('div');row.className='widget-todo-row';
     const check=document.createElement('input');check.type='checkbox';check.checked=task.done;check.setAttribute('aria-label',task.text+' 완료');check.addEventListener('change',()=>{task.done=check.checked;save();});
     const txt=document.createElement('span');txt.textContent=task.text;if(task.done)txt.classList.add('done');
-    const del=document.createElement('button');del.type='button';del.className='widget-todo-remove';del.title='이 Todo 삭제';del.textContent='×';del.addEventListener('click',()=>{data.todos=data.todos.filter(t=>t.id!==task.id);save();});
-    row.append(check,txt,del);list.appendChild(row);
+    const edit=document.createElement('button');edit.type='button';edit.className='widget-todo-edit';edit.title='할 일 수정';edit.setAttribute('aria-label',task.text+' 수정');edit.textContent='✎';
+    edit.addEventListener('click',()=>{
+      const input=document.createElement('input');input.type='text';input.className='widget-todo-edit-input';input.maxLength=140;input.value=task.text;input.setAttribute('aria-label','할 일 내용 수정');
+      const saveBtn=document.createElement('button');saveBtn.type='button';saveBtn.className='widget-todo-save';saveBtn.textContent='✓';saveBtn.title='수정 저장';
+      const cancelBtn=document.createElement('button');cancelBtn.type='button';cancelBtn.className='widget-todo-cancel';cancelBtn.textContent='↶';cancelBtn.title='수정 취소';
+      const cancel=()=>{input.replaceWith(txt);saveBtn.replaceWith(edit);cancelBtn.remove();};
+      const commit=()=>{const result=TodoOps.update(data.todos,task.id,input.value);if(!input.value.trim()){notify('할 일을 입력해 주세요.');input.focus();return;}if(result.changed){data.todos=result.todos;save();}else cancel();};
+      input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();commit();}if(event.key==='Escape'){event.preventDefault();cancel();}});
+      saveBtn.addEventListener('click',commit);cancelBtn.addEventListener('click',cancel);
+      txt.replaceWith(input);edit.replaceWith(saveBtn);saveBtn.after(cancelBtn);input.focus();input.select();
+    });
+    const del=document.createElement('button');del.type='button';del.className='widget-todo-remove';del.title='이 Todo 삭제';del.setAttribute('aria-label',task.text+' 삭제');del.textContent='×';del.addEventListener('click',()=>{data.todos=data.todos.filter(t=>t.id!==task.id);save();});
+    row.append(check,txt,edit,del);list.appendChild(row);
   }
   if(!data.todos.length){const p=document.createElement('p');p.className='widget-empty';p.textContent='할 일이 없어요. 아래에서 새로 등록해 보세요.';list.appendChild(p);}
  }
- $('widgetTodoForm').addEventListener('submit',e=>{e.preventDefault();const input=$('widgetTodoInput'),text=input.value.trim();if(!text)return;data.todos.push({id:uid(),text,done:false});input.value='';save();});
+ function renderWidgetTodo(){renderTodoInto('widgetTodoList','widgetTodoCount');}
+ function renderMainTodo(){renderTodoInto('mainTodoList','mainTodoCount');}
+ function bindTodoForm(formId,inputId){$(formId).addEventListener('submit',e=>{e.preventDefault();const input=$(inputId),text=input.value.trim();if(!text)return;data.todos.push({id:uid(),text,done:false});input.value='';save();});}
+ bindTodoForm('widgetTodoForm','widgetTodoInput');
+ bindTodoForm('mainTodoForm','mainTodoInput');
    function renderWidgetMini(){
-   const now=new Date(),y=now.getFullYear(),m=now.getMonth(),first=new Date(y,m,1),offset=first.getDay(),end=new Date(y,m+1,0).getDate();
+   const now=new Date(),y=now.getFullYear(),m=now.getMonth(),first=new Date(y,m,1),offset=(first.getDay()-data.weekStart+7)%7,end=new Date(y,m+1,0).getDate();
    const weekly=data.widgetCalendarMode==='week';
    $('miniMonthLabel').textContent=`${y}년 ${m+1}월${weekly?' · 이번 주':''}`;
    $('widgetMiniMode').textContent=weekly?'월간':'주간';
    $('widgetMiniMode').setAttribute('aria-pressed',String(weekly));
    const grid=$('widgetMiniCalendar');grid.replaceChildren();
-   ['일','월','화','수','목','금','토'].forEach(x=>{const b=document.createElement('span');b.className='mini-dayhead';b.textContent=x;grid.appendChild(b);});
-   const dates=weekly?Array.from({length:7},(_,i)=>dateAdd(now,-now.getDay()+i)):Array.from({length:offset+end},(_,i)=>i<offset?null:new Date(y,m,i-offset+1));
+   Planner.dayOrder(data.weekStart).forEach(day=>{const b=document.createElement('span');b.className='mini-dayhead';b.textContent=['일','월','화','수','목','금','토'][day];b.classList.add(day===0?'is-sunday':day===6?'is-saturday':'is-weekday');grid.appendChild(b);});
+   const dates=weekly?Array.from({length:7},(_,i)=>dateAdd(now,-((now.getDay()-data.weekStart+7)%7)+i)):Array.from({length:offset+end},(_,i)=>i<offset?null:new Date(y,m,i-offset+1));
    for(const d of dates){if(!d){grid.appendChild(document.createElement('span'));continue;}
      const key=toDateKey(d),b=document.createElement('button');b.type='button';b.textContent=d.getDate();b.className='mini-day'+(key===todayKey?' today':'')+(key===selectedDate?' selected':'')+(d.getMonth()!==m?' outside':'');
      if(Planner.expand(data.events,key,key).length)b.classList.add('has-event');
@@ -715,13 +762,13 @@ $('shortcutForm').addEventListener('submit',async ev=>{
 });
 function makeSegments(weekStart){
  const start=toDateKey(weekStart),end=toDateKey(dateAdd(weekStart,6));
- // A week is Sun..Sat. Show colored timeline cells only Mon..Fri (indices 1..5).
+ // Timeline cells include Mon..Fri, regardless of chosen week start.
  // Weekends stay in the saved start/end dates but are visually skipped.
  const allowed=new Set(matchingEvents().map(e=>e.id));
   const segs=Planner.expand(data.events,start,end).filter(e=>allowed.has(e.id)).map(e=>{
    const st=e.start<start?start:e.start,en=e.end>end?end:e.end;
    const first=Math.round((parseKey(st)-weekStart)/86400000),last=Math.round((parseKey(en)-weekStart)/86400000);
-   const startIndex=Math.max(1,first),endIndex=Math.min(5,last);
+   const [firstWorkday,lastWorkday]=Planner.workdayBounds(data.weekStart);const startIndex=Math.max(firstWorkday,first),endIndex=Math.min(lastWorkday,last);
    if(startIndex>endIndex)return null; // weekend only
    return {e,startIndex,endIndex,leftContinuation:e.start<toDateKey(dateAdd(weekStart,startIndex)),rightContinuation:e.end>toDateKey(dateAdd(weekStart,endIndex))};
  }).filter(Boolean).sort((a,b)=>a.startIndex-b.startIndex || (b.endIndex-b.startIndex)-(a.endIndex-a.startIndex) || a.e.title.localeCompare(b.e.title));
@@ -731,13 +778,17 @@ function makeSegments(weekStart){
 }
 function renderCalendar(){
  const weekMode=data.calendarMode==='week';
- const mStart=weekMode?Planner.week(selectedDate):toDateKey(new Date(month.getFullYear(),month.getMonth(),1));
+ const mStart=weekMode?Planner.week(selectedDate,data.weekStart):toDateKey(new Date(month.getFullYear(),month.getMonth(),1));
  const mEnd=weekMode?Planner.add(mStart,6):toDateKey(new Date(month.getFullYear(),month.getMonth()+1,0));
  $('monthLabel').textContent=weekMode?`${fmtDate(mStart)} ~ ${fmtDate(mEnd)}`:`${month.getFullYear()}년 ${month.getMonth()+1}월`;
  $('monthMode').classList.toggle('selected',!weekMode);$('weekMode').classList.toggle('selected',weekMode);
  const visible=Planner.expand(data.events,mStart,mEnd);const allowed=new Set(matchingEvents().map(e=>e.id));const showing=visible.filter(e=>allowed.has(e.id));
  $('monthSummary').textContent=`${weekMode?'이번 주':'이번 달'} 일정 ${visible.length}개 · 표시 ${showing.length}개 · 완료 ${visible.filter(e=>eventStatus(e)==='done').length}개`;
  const compact=data.view==='compact';$('compactBtn').classList.toggle('selected',compact);$('detailBtn').classList.toggle('selected',!compact);
+ $('weekStartSelect').value=String(data.weekStart);
+ const headers=$('weekdayHeaders');headers.replaceChildren();
+ for(const day of Planner.dayOrder(data.weekStart)){const col=document.createElement('div');col.className='weekday'+(day===0?' is-sunday':day===6?' is-saturday':'');col.textContent=['일요일','월요일','화요일','수요일','목요일','금요일','토요일'][day];headers.appendChild(col);}
+ renderMainTodo();
 
 const calendar=$('calendar');calendar.replaceChildren();
 for(const weekStart of monthWeeks()){
@@ -745,7 +796,7 @@ for(const weekStart of monthWeeks()){
   const h=compact?128:Math.max(137,48+lanes*38+18);
   const week=document.createElement('div');week.className='week';week.style.height=h+'px';const dayRow=document.createElement('div');dayRow.className='days-row';
   for(let day=0;day<7;day++){
-    const d=dateAdd(weekStart,day),key=toDateKey(d);const cell=document.createElement('div');cell.className='date-cell';cell.dataset.date=key;if(d.getMonth()!==month.getMonth())cell.classList.add('other-month');if(key===todayKey)cell.classList.add('is-today');if(key===selectedDate)cell.classList.add('selected-date');if(day===0)cell.classList.add('sunday');if(day===6)cell.classList.add('saturday');
+    const d=dateAdd(weekStart,day),key=toDateKey(d);const cell=document.createElement('div');cell.className='date-cell';cell.dataset.date=key;if(d.getMonth()!==month.getMonth())cell.classList.add('other-month');if(key===todayKey)cell.classList.add('is-today');if(key===selectedDate)cell.classList.add('selected-date');if(d.getDay()===0)cell.classList.add('sunday');if(d.getDay()===6)cell.classList.add('saturday');
     const number=document.createElement('button');number.className='date-btn';number.textContent=String(d.getDate());number.setAttribute('aria-label',`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 작업 보기`);number.addEventListener('click',()=>{selectDate(key);openEvent(null,key);});const hit=document.createElement('button');hit.className='day-hit';hit.tabIndex=-1;hit.setAttribute('aria-label',`${key} 날짜 클릭`);hit.addEventListener('click',()=>{selectDate(key);openEvent(null,key);});cell.append(number,hit);
     if(compact){const hiddenCount=segs.filter(s=>s.lane>=maxShown&&s.startIndex<=day&&s.endIndex>=day).length;if(hiddenCount){const more=document.createElement('button');more.className='more-count';more.textContent=`+${hiddenCount}개 더`;more.title='자세히 보기';more.addEventListener('click',()=>{data.view='detail';save();renderCalendar();});cell.appendChild(more);}}
     dayRow.appendChild(cell);
@@ -786,6 +837,7 @@ for(const weekStart of monthWeeks()){
  $('addSelectedDay').addEventListener('click',()=>openEvent(null,selectedDate));
  $('monthMode').addEventListener('click',()=>{data.calendarMode='month';save();renderCalendar();});
  $('weekMode').addEventListener('click',()=>{data.calendarMode='week';save();renderCalendar();});
+ $('weekStartSelect').addEventListener('change',event=>{data.weekStart=event.target.value==='1'?1:0;save();renderCalendar();});
  $('undoTimeline').addEventListener('click',()=>{
   const previous=dragUndo.pop();if(!previous)return;
   data.events=previous.map(cleanEvent).filter(Boolean);save();renderCalendar();$('undoTimeline').disabled=!dragUndo.length;notify('타임라인 변경을 되돌렸어요.');
@@ -996,7 +1048,7 @@ for(const v of ['compact','detail']){$(v==='compact'?'compactBtn':'detailBtn').a
      updateBackupPath();
    }catch(err){if(err?.name!=='AbortError')notify('백업 폴더를 지정하지 못했어요. 브라우저 권한을 확인해 주세요.');}
  });
- function makeBackup(){return{app:'KUN\'S KANBAN CALENDAR',version:11,theme:data.theme,widgetCalendarMode:data.widgetCalendarMode,notificationsEnabled:data.notificationsEnabled,exportedAt:new Date().toISOString(),events:data.events,notes:data.notes,games:data.games,shortcuts:data.shortcuts,todos:data.todos,calendarMode:data.calendarMode,widgetMode:data.widgetMode,view:data.view};}
+ function makeBackup(){return{app:'KUN\'S KANBAN CALENDAR',version:11,theme:data.theme,widgetCalendarMode:data.widgetCalendarMode,weekStart:data.weekStart,notificationsEnabled:data.notificationsEnabled,exportedAt:new Date().toISOString(),events:data.events,notes:data.notes,games:data.games,shortcuts:data.shortcuts,todos:data.todos,calendarMode:data.calendarMode,widgetMode:data.widgetMode,view:data.view};}
  function downloadBackup(blob,name){const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
   $('exportBtn').addEventListener('click',async()=>{
     if(DESKTOP){try{const result=await DESKTOP.saveBackup(JSON.stringify(makeBackup(),null,2));if(result.path)notify('백업 저장 완료: '+result.path);else if(!result.canceled)notify('백업을 저장할 수 없어요.');}catch(err){notify('백업 오류: '+(err.message||'폴더 권한을 확인해 주세요.'));}return;}
@@ -1016,7 +1068,7 @@ for(const v of ['compact','detail']){$(v==='compact'?'compactBtn':'detailBtn').a
    }
    downloadBackup(blob,name);notify('JSON 파일 다운로드를 시작했어요. 브라우저 다운로드 폴더를 확인해 주세요.');
  });
-$('importBtn').addEventListener('click',()=>$('importFile').click());$('importFile').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>10*1024*1024)throw Error('파일이 너무 큽니다 (최대 10MB).');const obj=JSON.parse(await file.text());if(!obj||!Array.isArray(obj.events)||!Array.isArray(obj.notes))throw Error('올바른 백업 JSON 파일이 아닙니다.');const events=obj.events.map(cleanEvent);const notes=obj.notes.map(cleanNote);if(events.some(x=>!x)||notes.some(x=>!x))throw Error('백업 데이터에 잘못된 일정 또는 메모가 있어요.');if(!confirm(`백업에서 일정 ${events.length}개, 메모 ${notes.length}개를 복원할까요?\n\n현재 저장된 데이터는 백업 데이터로 대체됩니다. 필요하면 먼저 현재 데이터를 백업해 주세요.`))return;data={version:11,theme:obj.theme==='dark'?'dark':'light',widgetCalendarMode:obj.widgetCalendarMode==='week'?'week':'month',notificationsEnabled:obj.notificationsEnabled!==false,events,notes,games:(Array.isArray(obj.games)?obj.games:defaultGames()).map(cleanGame).filter(Boolean),todos:(Array.isArray(obj.todos)?obj.todos:[]).map(cleanTodo).filter(Boolean),calendarMode:obj.calendarMode==='week'?'week':'month',shortcuts:normalizedShortcuts(obj.shortcuts),widgetMode:!!obj.widgetMode,view:obj.view==='detail'?'detail':'compact'};clearDragUndo();selectedNoteId=data.notes[0]?.id||null;save();closeAll(); let chosenRestore=null;
+$('importBtn').addEventListener('click',()=>$('importFile').click());$('importFile').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>10*1024*1024)throw Error('파일이 너무 큽니다 (최대 10MB).');const obj=JSON.parse(await file.text());if(!obj||!Array.isArray(obj.events)||!Array.isArray(obj.notes))throw Error('올바른 백업 JSON 파일이 아닙니다.');const events=obj.events.map(cleanEvent);const notes=obj.notes.map(cleanNote);if(events.some(x=>!x)||notes.some(x=>!x))throw Error('백업 데이터에 잘못된 일정 또는 메모가 있어요.');if(!confirm(`백업에서 일정 ${events.length}개, 메모 ${notes.length}개를 복원할까요?\n\n현재 저장된 데이터는 백업 데이터로 대체됩니다. 필요하면 먼저 현재 데이터를 백업해 주세요.`))return;data={version:11,theme:obj.theme==='dark'?'dark':'light',widgetCalendarMode:obj.widgetCalendarMode==='week'?'week':'month',weekStart:obj.weekStart===1?1:0,notificationsEnabled:obj.notificationsEnabled!==false,events,notes,games:(Array.isArray(obj.games)?obj.games:defaultGames()).map(cleanGame).filter(Boolean),todos:(Array.isArray(obj.todos)?obj.todos:[]).map(cleanTodo).filter(Boolean),calendarMode:obj.calendarMode==='week'?'week':'month',shortcuts:normalizedShortcuts(obj.shortcuts),widgetMode:!!obj.widgetMode,view:obj.view==='detail'?'detail':'compact'};clearDragUndo();selectedNoteId=data.notes[0]?.id||null;save();closeAll(); let chosenRestore=null;
  async function openRestore(){
   if(!DESKTOP){notify('자동 백업 복원은 데스크톱 앱에서 지원해요.');return;}
   restoreOpened=true;$('restoreModal').hidden=false;displayOverlay();
@@ -1038,7 +1090,7 @@ $('importBtn').addEventListener('click',()=>$('importFile').click());$('importFi
  $('restoreApply').addEventListener('click',async()=>{
   if(!chosenRestore||!DESKTOP)return;
   if(!confirm('선택한 백업으로 현재 데이터를 교체할까요?\n\n현재 데이터는 복원 직전 별도 백업으로 남깁니다.'))return;
-  try{const obj=JSON.parse(chosenRestore.json);const next={version:11,theme:obj.theme==='dark'?'dark':'light',widgetCalendarMode:obj.widgetCalendarMode==='week'?'week':'month',events:(obj.events||[]).map(cleanEvent).filter(Boolean),notes:(obj.notes||[]).map(cleanNote).filter(Boolean),games:(obj.games||defaultGames()).map(cleanGame).filter(Boolean),shortcuts:normalizedShortcuts(obj.shortcuts),todos:(obj.todos||[]).map(cleanTodo).filter(Boolean),calendarMode:obj.calendarMode==='week'?'week':'month',view:obj.view==='detail'?'detail':'compact',widgetMode:!!obj.widgetMode,notificationsEnabled:obj.notificationsEnabled!==false,recentColors:(Array.isArray(obj.recentColors)?obj.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS)};
+  try{const obj=JSON.parse(chosenRestore.json);const next={version:11,theme:obj.theme==='dark'?'dark':'light',widgetCalendarMode:obj.widgetCalendarMode==='week'?'week':'month',weekStart:obj.weekStart===1?1:0,events:(obj.events||[]).map(cleanEvent).filter(Boolean),notes:(obj.notes||[]).map(cleanNote).filter(Boolean),games:(obj.games||defaultGames()).map(cleanGame).filter(Boolean),shortcuts:normalizedShortcuts(obj.shortcuts),todos:(obj.todos||[]).map(cleanTodo).filter(Boolean),calendarMode:obj.calendarMode==='week'?'week':'month',view:obj.view==='detail'?'detail':'compact',widgetMode:!!obj.widgetMode,notificationsEnabled:obj.notificationsEnabled!==false,recentColors:(Array.isArray(obj.recentColors)?obj.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS)};
    await DESKTOP.savePreRestore();data=next;applyTheme();clearDragUndo();await DESKTOP.saveData(JSON.stringify(data));closeAll();selectedDate=todayKey;month=new Date(today.getFullYear(),today.getMonth(),1);updateGameFilter();renderCalendar();renderNoteList();renderPinnedNotes();renderShortcuts();await setWidgetMode(data.widgetMode,false);notify('백업 복원이 완료됐어요.');
   }catch(err){notify('복원 실패: '+(err.message||'백업 파일을 확인해 주세요.'));}
  });
@@ -1065,7 +1117,7 @@ $('importBtn').addEventListener('click',()=>$('importFile').click());$('importFi
  $('restoreApply').addEventListener('click',async()=>{
   if(!chosenRestore||!DESKTOP)return;
   if(!confirm('선택한 백업으로 현재 데이터를 교체할까요?\n\n현재 데이터는 복원 직전 별도 백업으로 남깁니다.'))return;
-  try{const obj=JSON.parse(chosenRestore.json);const next={version:11,theme:obj.theme==='dark'?'dark':'light',widgetCalendarMode:obj.widgetCalendarMode==='week'?'week':'month',events:(obj.events||[]).map(cleanEvent).filter(Boolean),notes:(obj.notes||[]).map(cleanNote).filter(Boolean),games:(obj.games||defaultGames()).map(cleanGame).filter(Boolean),shortcuts:normalizedShortcuts(obj.shortcuts),todos:(obj.todos||[]).map(cleanTodo).filter(Boolean),calendarMode:obj.calendarMode==='week'?'week':'month',view:obj.view==='detail'?'detail':'compact',widgetMode:!!obj.widgetMode,notificationsEnabled:obj.notificationsEnabled!==false,recentColors:(Array.isArray(obj.recentColors)?obj.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS)};
+  try{const obj=JSON.parse(chosenRestore.json);const next={version:11,theme:obj.theme==='dark'?'dark':'light',widgetCalendarMode:obj.widgetCalendarMode==='week'?'week':'month',weekStart:obj.weekStart===1?1:0,events:(obj.events||[]).map(cleanEvent).filter(Boolean),notes:(obj.notes||[]).map(cleanNote).filter(Boolean),games:(obj.games||defaultGames()).map(cleanGame).filter(Boolean),shortcuts:normalizedShortcuts(obj.shortcuts),todos:(obj.todos||[]).map(cleanTodo).filter(Boolean),calendarMode:obj.calendarMode==='week'?'week':'month',view:obj.view==='detail'?'detail':'compact',widgetMode:!!obj.widgetMode,notificationsEnabled:obj.notificationsEnabled!==false,recentColors:(Array.isArray(obj.recentColors)?obj.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS)};
    await DESKTOP.savePreRestore();data=next;applyTheme();clearDragUndo();await DESKTOP.saveData(JSON.stringify(data));closeAll();selectedDate=todayKey;month=new Date(today.getFullYear(),today.getMonth(),1);updateGameFilter();renderCalendar();renderNoteList();renderPinnedNotes();renderShortcuts();await setWidgetMode(data.widgetMode,false);notify('백업 복원이 완료됐어요.');
   }catch(err){notify('복원 실패: '+(err.message||'백업 파일을 확인해 주세요.'));}
  });

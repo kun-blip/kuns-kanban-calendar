@@ -9,7 +9,10 @@
   function add(k,n){if(!valid(k)||!Number.isFinite(n))return k;const d=utc(k);d.setUTCDate(d.getUTCDate()+n);return key(d);}
   function days(a,b){return valid(a)&&valid(b)?Math.round((utc(b)-utc(a))/86400000):0;}
   function monthly(k,n){const d=utc(k),firstDay=d.getUTCDate(),target=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+n+1,0));const nd=Math.min(firstDay,target.getUTCDate());return key(new Date(Date.UTC(target.getUTCFullYear(),target.getUTCMonth(),nd)));}
-  function week(k){return add(k,-utc(k).getUTCDay());}
+  // startDay: 0 = Sunday, 1 = Monday. Keep Sunday as the default for existing users.
+  function week(k,startDay=0){if(!valid(k))return k;const first=startDay===1?1:0;return add(k,-((utc(k).getUTCDay()-first+7)%7));}
+  function dayOrder(startDay=0){const first=startDay===1?1:0;return Array.from({length:7},(_,index)=>(first+index)%7);}
+  function workdayBounds(startDay=0){return startDay===1?[0,4]:[1,5];}
   function expand(events,from,to){
     const out=[];
     for(const event of events){
@@ -28,5 +31,5 @@
     }
     return out;
   }
-  return {add,days,monthly,week,expand};
+  return {add,days,monthly,week,dayOrder,workdayBounds,expand};
 });
