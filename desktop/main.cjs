@@ -1,7 +1,8 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, Notification, nativeImage, shell, powerMonitor, screen } = require('electron');
+const { pathToFileURL } = require('node:url');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, Notification, nativeImage, shell, powerMonitor, screen, session } = require('electron');
 const { assertPayload, readText, atomicWrite, readJson, filenameStamp } = require('./data.cjs');
 const { dueEvents } = require('./reminders.cjs');
 const { snapshotDaily, dayStamp } = require('./auto-backup.cjs');
@@ -11,6 +12,7 @@ const { createUpdateController } = require('./update-controller.cjs');
 const { shouldAnnounceUpdate } = require('./update-notice.cjs');
 const { createFeedbackController } = require('./feedback.cjs');
 const { shouldShowWelcome } = require('./welcome-state.cjs');
+const { safeExternalUrl } = require('./external-url.cjs');
 const feedbackConfig = require('./feedback-config.json');
 const packageJson = require('../package.json');
 const packagedReleaseConfig = require('./release-config.json');
@@ -21,6 +23,7 @@ const ICON = path.join(__dirname, '..', 'assets', 'app.png');
 const TRAY_ICON = process.platform === 'darwin'
   ? path.join(__dirname, '..', 'assets', 'tray-macTemplate.png') : ICON;
 const HTML = path.join(__dirname, '..', 'renderer', 'index.html');
+const TRUSTED_RENDERER_URL = pathToFileURL(HTML).href;
 app.setName(APP_NAME);
 if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
 
@@ -191,13 +194,15 @@ function createWindow() {
     }
   });
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(() => {});
+    const safe = safeExternalUrl(url);
+    if (safe) void shell.openExternal(safe).catch(() => {});
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', (event, url) => {
-    if (url !== window.webContents.getURL()) {
+    if (url !== TRUSTED_RENDERER_URL) {
       event.preventDefault();
-      if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(() => {});
+      const safe = safeExternalUrl(url);
+      if (safe) void shell.openExternal(safe).catch(() => {});
     }
   });
   window.on('close', event => {
@@ -232,9 +237,21 @@ function createTray() {
     updateTrayMenu();
   } catch (err) { console.warn('Unable to create tray:', err); }
 }
+// IPC is accessible only from the main frame of the bundled calendar page.
+function isTrustedIpcSender(event) {
+  return !!window && !window.isDestroyed() && event.sender === window.webContents
+    && event.senderFrame === window.webContents.mainFrame
+    && event.senderFrame?.url === TRUSTED_RENDERER_URL;
+}
+function secureHandle(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!isTrustedIpcSender(event)) throw new Error('Untrusted IPC sender');
+    return handler(event, ...args);
+  });
+}
 function registerIpc() {
-  ipcMain.handle('welcome:getState', () => ({ shouldShow: welcomeEligible }));
-  ipcMain.handle('welcome:complete', () => {
+  secureHandle('welcome:getState', () => ({ shouldShow: welcomeEligible }));
+  secureHandle('welcome:complete', () => {
     if (!welcomeEligible) return { ok: true };
     try {
       atomicWrite(welcomeFile(), JSON.stringify({ completed: true, at: new Date().toISOString() }));
@@ -245,26 +262,27 @@ function registerIpc() {
       return { ok: false, message: '첫 실행 안내 상태를 저장할 수 없습니다.' };
     }
   });
-  ipcMain.handle('update:getState',()=>updateController?.current()||{phase:'disabled',version:app.getVersion(),message:'업데이트 준비 중'});
-  ipcMain.handle('update:check',()=>updateController?.check(true));
-  ipcMain.handle('update:download',()=>updateController?.download());
-  ipcMain.handle('update:install',()=>updateController?.install());
+  secureHandle('update:getState',()=>updateController?.current()||{phase:'disabled',version:app.getVersion(),message:'업데이트 준비 중'});
+  secureHandle('update:check',()=>updateController?.check(true));
+  secureHandle('update:download',()=>updateController?.download());
+  secureHandle('update:install',()=>updateController?.install());
   // 'Later' lasts for the current app session only, not permanently across launches.
-  ipcMain.handle('update:getNoticePreference',()=>({dismissedVersion:dismissedUpdateVersionThisRun}));
-  ipcMain.handle('update:dismissNotice',(_event,version)=>{
+  secureHandle('update:getNoticePreference',()=>({dismissedVersion:dismissedUpdateVersionThisRun}));
+  secureHandle('update:dismissNotice',(_event,version)=>{
     const state=updateController?.current();
     if(typeof version!=='string'||!state||state.newVersion!==version)return {ok:false};
     dismissedUpdateVersionThisRun=version;
     return {ok:true,dismissedVersion:version};
   });
-  ipcMain.handle('feedback:submit',(_event,input)=>feedbackController.submit(input));
-  ipcMain.handle('settings:getAutostart',()=>({enabled:autostartState(),packaged:app.isPackaged, supported:process.platform==='win32'}));
-  ipcMain.handle('settings:setAutostart',(_event,enabled)=>setAutostart(!!enabled));
+  secureHandle('feedback:submit',(_event,input)=>feedbackController.submit(input));
+  secureHandle('settings:getAutostart',()=>({enabled:autostartState(),packaged:app.isPackaged, supported:process.platform==='win32'}));
+  secureHandle('settings:setAutostart',(_event,enabled)=>setAutostart(!!enabled));
   ipcMain.on('calendar:read', event => {
+    if (!isTrustedIpcSender(event)) { event.returnValue = ''; return; }
     try { event.returnValue = readText(dataFile(), ''); }
     catch { event.returnValue = ''; }
   });
-  ipcMain.handle('calendar:save', async (_event, json) => {
+  secureHandle('calendar:save', async (_event, json) => {
     assertPayload(json);
     // Serialize writes and use atomic rename to prevent a truncated data file.
     saveQueue = saveQueue.catch(() => {}).then(() => {
@@ -279,7 +297,7 @@ function registerIpc() {
     return { ok: true, path: dataFile() };
   });
   // Read-only, strictly whitelisted access to daily snapshots.
-  ipcMain.handle('backup:listAuto', async () => {
+  secureHandle('backup:listAuto', async () => {
     await saveQueue.catch(() => {});
     const folder = autoBackupFolder();
     if (!fs.existsSync(folder)) return [];
@@ -290,7 +308,7 @@ function registerIpc() {
         return {name,date:name.slice(11,21),sizeKB:Math.max(1,Math.round(info.size/1024))};
       });
   });
-  ipcMain.handle('backup:previewAuto', async (_event,name) => {
+  secureHandle('backup:previewAuto', async (_event,name) => {
     if(typeof name!=='string'||!/^kuuns-auto-\d{4}-\d{2}-\d{2}\.json$/.test(name))throw new Error('Invalid backup filename');
     const file=path.join(autoBackupFolder(),name);
     const info=fs.statSync(file);
@@ -298,7 +316,7 @@ function registerIpc() {
     const json=readText(file,'');assertPayload(json);
     return {name,json};
   });
-  ipcMain.handle('backup:preRestore', async () => {
+  secureHandle('backup:preRestore', async () => {
     await saveQueue.catch(() => {});
     const raw=readText(dataFile(),'');if(!raw)return {ok:false};
     assertPayload(raw);
@@ -306,16 +324,16 @@ function registerIpc() {
     const dest=path.join(folder,`kuuns-before-restore-${filenameStamp()}-${Date.now()}.json`);
     atomicWrite(dest,raw);return {ok:true,path:dest};
   });
-  ipcMain.handle('backup:autoStatus', () => ({ folder:autoBackupFolder(), retain:30 }));
-  ipcMain.handle('backup:openAutoFolder', async () => {
+  secureHandle('backup:autoStatus', () => ({ folder:autoBackupFolder(), retain:30 }));
+  secureHandle('backup:openAutoFolder', async () => {
     const folder=autoBackupFolder();fs.mkdirSync(folder,{recursive:true});
     const error=await shell.openPath(folder);
     return { ok:!error, folder, error };
   });
-  ipcMain.handle('backup:getFolder', () => {
+  secureHandle('backup:getFolder', () => {
     return { path: loadSettings().backupFolder || '' };
   });
-  ipcMain.handle('backup:chooseFolder', async () => {
+  secureHandle('backup:chooseFolder', async () => {
     const result = await dialog.showOpenDialog(window, {
       title: '백업 폴더 지정', defaultPath: loadSettings().backupFolder || app.getPath('documents'),
       properties: ['openDirectory', 'createDirectory']
@@ -326,7 +344,7 @@ function registerIpc() {
     updateTrayMenu();
     return { path: folder };
   });
-  ipcMain.handle('backup:save', async (_event, json) => {
+  secureHandle('backup:save', async (_event, json) => {
     assertPayload(json);
     const name = `쿤스_칸반_캘린더_백업_${filenameStamp()}.json`;
     let folder = loadSettings().backupFolder;
@@ -346,7 +364,7 @@ function registerIpc() {
     atomicWrite(target, json);
     return { path: target };
   });
-  ipcMain.handle('window:widgetMode', (_event, enabled) => {
+  secureHandle('window:widgetMode', (_event, enabled) => {
     if (!window || window.isDestroyed()) return {ok:false};
     const requested=!!enabled;
     if (requested===isWidget)return {ok:true,widgetMode:isWidget};
@@ -382,7 +400,7 @@ function registerIpc() {
     }
     return {ok:true,widgetMode:isWidget};
   });
-  ipcMain.handle('notification:test', () => {
+  secureHandle('notification:test', () => {
     const ok = showNotification(APP_NAME, '시스템 알림 테스트입니다. 일정 알림도 이 방식으로 표시됩니다.');
     return { ok };
   });
@@ -401,6 +419,9 @@ else {
     }
   });
   app.whenReady().then(() => {
+    // This local-only app uses native OS notifications; its web page needs no browser permissions.
+    session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    session.defaultSession.setPermissionCheckHandler(() => false);
     welcomeEligible = detectWelcomeEligibility();
     registerIpc(); createWindow(); createTray();
     if (process.platform === 'darwin') {

@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const planner=require('../renderer/planner.js');
 const todos=require('../renderer/todos.js');
-const html=fs.readFileSync(path.join(__dirname,'../renderer/index.html'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'../renderer/index.html'),'utf8') + fs.readFileSync(path.join(__dirname,'../renderer/app.js'),'utf8');
 test('Sunday is the backward-compatible default; Monday begins the preceding Monday',()=>{
   assert.equal(planner.week('2026-10-23'),'2026-10-18');
   assert.equal(planner.week('2026-10-23',1),'2026-10-19');

@@ -1,11 +1,11 @@
 {
   "name": "kuuns-kanban-calendar",
   "productName": "쿤스 칸반 캘린더",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "description": "로컬 저장 기반 Windows/macOS 작업 타임라인 캘린더",
   "private": true,
   "main": "desktop/main.cjs",
-  "author": "Local personal calendar",
+  "author": "KUN'S KANBAN CALENDAR",
   "scripts": {
     "start": "electron .",
     "test": "node --test test/*.test.cjs",
