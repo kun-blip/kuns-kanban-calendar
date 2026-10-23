@@ -1080,89 +1080,9 @@ window.addEventListener('pointerdown',event=>{
   });
 })();
 
-// Updates are checked automatically only in the installed Windows application.
-(function initUpdateCenter(){
-  const bridge=window.kuunsDesktop;
-  const launch=document.getElementById('updateLaunch');
-  if(!bridge?.getUpdateState){return;}
-  const overlay=document.getElementById('updateOverlay');
-  const msg=document.getElementById('updateMessage');
-  const action=document.getElementById('updateAction');
-  const bar=document.getElementById('updateProgressBar');
-  const progress=document.getElementById('updateProgress');
-  const cur=document.getElementById('updateCurrent');
-  let state={phase:'idle',version:'1.7.0',message:'업데이트 상태를 확인하세요.'};
-  let dismissedVersion='', preferenceLoaded=false, promptedVersion='';
-  const names={idle:'업데이트 확인',disabled:'설정 필요',checking:'확인 중…',current:'최신 버전',available:'다운로드',downloading:'다운로드 중…',downloaded:'재시작하여 설치',installing:'설치 중…',error:'다시 확인'};
-  function refresh(next){
-    if(!next||typeof next.phase!=='string')return;
-    state=next;
-    launch.hidden=false;
-    const attention=['available','downloaded'].includes(state.phase);
-    launch.classList.toggle('has-update',attention);
-    document.getElementById('updateLaunchText').textContent=attention?'새 버전':'업데이트';
-    cur.textContent=`현재 v${state.version||'-'}${state.newVersion?' · 새 버전 v'+state.newVersion:''}`;
-    msg.textContent=state.message||'GitHub Releases 상태를 확인하세요.';
-    const pct=Math.max(0,Math.min(100,Number(state.percent)||0));
-    progress.hidden=state.phase!=='downloading';bar.style.width=pct+'%';
-    action.textContent=names[state.phase]||'업데이트 확인';
-    action.disabled=['disabled','checking','downloading','installing'].includes(state.phase);
-    maybeAnnounce();
-  }
-  function maybeAnnounce(){
-    if(!preferenceLoaded||state.phase!=='available'||!state.newVersion||
-      dismissedVersion===state.newVersion||promptedVersion===state.newVersion||
-      document.hidden||!overlay.hidden||!document.getElementById('feedbackOverlay').hidden||
-      !document.getElementById('shade').hidden)return;
-    // Avoid surprising users while they are editing text, and let the update
-    // badge and Windows toast stay visible if another modal is open.
-    const active=document.activeElement;
-    if(active&&(['INPUT','TEXTAREA','SELECT'].includes(active.tagName)||active.isContentEditable))return;
-    promptedVersion=state.newVersion;
-    open();
-  }
-  function open(){overlay.hidden=false;refresh(state);}
-  function close(){overlay.hidden=true;}
-  function dismiss(){
-    const version=state.newVersion;
-    close();
-    if(state.phase==='available'&&version){
-      dismissedVersion=version;
-      promptedVersion=version;
-      bridge.dismissUpdateNotice(version).catch(()=>{});
-    }
-  }
-  launch.addEventListener('click',open);
-  document.getElementById('updateClose').addEventListener('click',dismiss);
-  document.getElementById('updateLater').addEventListener('click',dismiss);
-  overlay.addEventListener('click',event=>{if(event.target===overlay)dismiss();});
-  document.addEventListener('keydown',event=>{if(!overlay.hidden&&event.key==='Escape'){event.stopPropagation();dismiss();}});
-  window.addEventListener('focus',maybeAnnounce);
-  document.addEventListener('visibilitychange',maybeAnnounce);
-  action.addEventListener('click',async()=>{
-    action.disabled=true;
-    try{
-      const phase=state.phase;
-      if(phase==='available')refresh(await bridge.downloadUpdate());
-      else if(phase==='downloaded'){
-        if(!confirm('업데이트 설치를 위해 앱을 종료하고 재시작할까요? 데이터는 PC에 그대로 저장됩니다.'))return;
-        refresh(await bridge.installUpdate());
-      }else refresh(await bridge.checkUpdate());
-    }catch(e){msg.textContent='업데이트 작업을 완료하지 못했어요. 잠시 후 다시 확인해 주세요.';}
-    finally{refresh(state);}
-  });
-  bridge.onUpdateState(refresh);
-  bridge.onOpenUpdate(open);
-  Promise.all([
-    bridge.getUpdateState().catch(()=>null),
-    bridge.getUpdateNoticePreference().catch(()=>({dismissedVersion:''}))
-  ]).then(([initial,preference])=>{
-    dismissedVersion=preference?.dismissedVersion||'';
-    preferenceLoaded=true;
-    refresh(initial||state);
-  });
-})();
+
 })();
 </script>
+<script src="./update-center.js"></script>
 </body>
 </html>

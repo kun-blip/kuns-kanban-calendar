@@ -32,9 +32,12 @@ let timer = null;
 let updateController = null;
 const feedbackController = createFeedbackController({endpoint:feedbackConfig.endpoint,version:app.getVersion()});
 let lastNotifiedUpdateVersion = '';
+let dismissedUpdateVersionThisRun = '';
 function showAvailableUpdateNotice(state) {
-  if (!shouldAnnounceUpdate(state, loadSettings().dismissedUpdateVersion || '', lastNotifiedUpdateVersion)) return;
-  lastNotifiedUpdateVersion = state.newVersion;
+  if (!shouldAnnounceUpdate(state, dismissedUpdateVersionThisRun, lastNotifiedUpdateVersion)) return;
+  // The in-app dialog is primary when the calendar is on screen.
+  // Use a Windows toast only when it is running in the tray/background.
+  if (window && !window.isDestroyed() && window.isVisible()) return;
   if (!Notification.isSupported()) return;
   try {
     const notice = new Notification({
@@ -44,6 +47,7 @@ function showAvailableUpdateNotice(state) {
     });
     notice.on('click', openUpdatePanel);
     notice.show();
+    lastNotifiedUpdateVersion = state.newVersion;
   } catch (err) { console.warn('Update notice:', err); }
 }
 function broadcastUpdate(state) {
@@ -161,6 +165,11 @@ function createWindow() {
     window.maximize();
     if (!process.argv.includes('--hidden')) window.show();
   });
+  // Re-emit the most recent result on every tray-to-window transition.
+  // This covers checks that finished before a hidden window was opened.
+  window.on('show', () => {
+    if (updateController && !window.isDestroyed()) window.webContents.send('update:state', updateController.current());
+  });
   window.webContents.on('before-input-event',(event,input)=>{
     if(input.type==='keyDown'&&input.control&&!input.alt&&!input.shift&&String(input.key).toLowerCase()==='n'){
       event.preventDefault();focusWindow();window.webContents.send('shortcut:newEvent');
@@ -213,11 +222,12 @@ function registerIpc() {
   ipcMain.handle('update:check',()=>updateController?.check(true));
   ipcMain.handle('update:download',()=>updateController?.download());
   ipcMain.handle('update:install',()=>updateController?.install());
-  ipcMain.handle('update:getNoticePreference',()=>({dismissedVersion:loadSettings().dismissedUpdateVersion||''}));
+  // 'Later' lasts for the current app session only, not permanently across launches.
+  ipcMain.handle('update:getNoticePreference',()=>({dismissedVersion:dismissedUpdateVersionThisRun}));
   ipcMain.handle('update:dismissNotice',(_event,version)=>{
     const state=updateController?.current();
     if(typeof version!=='string'||!state||state.newVersion!==version)return {ok:false};
-    const next=loadSettings();next.dismissedUpdateVersion=version;writeSettings(next);
+    dismissedUpdateVersionThisRun=version;
     return {ok:true,dismissedVersion:version};
   });
   ipcMain.handle('feedback:submit',(_event,input)=>feedbackController.submit(input));

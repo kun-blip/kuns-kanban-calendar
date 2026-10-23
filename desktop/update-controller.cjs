@@ -62,7 +62,8 @@ function createUpdateController({app,pkg,packagedConfig,updaterFactory,emit=()=>
     updater.on('update-downloaded',info=>publish('downloaded',{newVersion:info.version,message:`v${info.version} 다운로드 완료 · 재시작하면 적용돼요.`,percent:100}));
     updater.on('error',e=>{logger.warn('Updater event error',e);publish('error',{message:'업데이트 연결에 문제가 있어요. 공개 Releases와 latest.yml을 확인해 주세요.'});});
     publish('idle',{message:'업데이트가 설정되어 있어요. 자동으로 새 버전을 확인합니다.'});
-    clock(()=>{void check(false);},15000);
+    // Check shortly after launch; renderer queues the popup until it is visible.
+    clock(()=>{void check(false);},4000);
     interval=every(()=>{void check(false);},6*60*60*1000);
     return current();
   }
