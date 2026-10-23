@@ -162,6 +162,20 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: npm run build:mac
 
+      - name: Verify Mac application ad-hoc signature
+        run: |
+          set -euo pipefail
+          app_path=$(find dist -maxdepth 3 -type d -name '*.app' -print -quit)
+          if [[ -z "$app_path" ]]; then
+            echo "Could not locate .app in dist directory" >&2
+            exit 1
+          fi
+          echo "Checking $app_path"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          signature=$(codesign -dv --verbose=4 "$app_path" 2>&1)
+          echo "$signature" | grep -F 'Signature=adhoc'
+          echo "Ad-hoc signature verified (NOT an Apple Developer ID signature)."
+
       - name: Verify and upload Mac DMG to the existing Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

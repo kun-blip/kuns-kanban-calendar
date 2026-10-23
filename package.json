@@ -1,7 +1,7 @@
 {
   "name": "kuuns-kanban-calendar",
   "productName": "쿤스 칸반 캘린더",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "로컬 저장 기반 Windows/macOS 작업 타임라인 캘린더",
   "private": true,
   "main": "desktop/main.cjs",
@@ -64,7 +64,7 @@
       "category": "public.app-category.productivity",
       "icon": "assets/app-mac.png",
       "artifactName": "KuunsKanbanCalendar-${version}-mac-${arch}.${ext}",
-      "identity": null,
+      "identity": "-",
       "hardenedRuntime": false,
       "target": [
         {

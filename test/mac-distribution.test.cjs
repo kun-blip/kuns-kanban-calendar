@@ -15,12 +15,14 @@ test('Mac and Windows artifacts share a GitHub release, Windows updater remains 
  assert.equal(pkg.build.win.target[0].target,'nsis');
  assert.equal(pkg.build.mac.target[0].target,'dmg');
  assert.deepEqual(pkg.build.mac.target[0].arch,['universal']);
- assert.equal(pkg.build.mac.identity,null);
+ assert.equal(pkg.build.mac.identity,'-'); // Explicit ad-hoc signing for unsigned Mac diagnostic builds
  assert.equal(pkg.build.mac.hardenedRuntime,false);
  assert.match(pkg.scripts['build:mac'],/--mac dmg --universal --publish never/);
  assert.match(workflow,/needs: windows-release/);
  assert.match(workflow,/gh release upload/);
  assert.match(workflow,/macos-15/);
+ assert.match(workflow,/codesign --verify --deep --strict/);
+ assert.match(workflow,/Signature=adhoc/);
 });
 test('Mac test app never silently downloads/installs unsigned updates',()=>{
  let called = false;
