@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('kuunsDesktop', Object.freeze({
   getUpdateNoticePreference:()=>ipcRenderer.invoke('update:getNoticePreference'),
   dismissUpdateNotice:version=>ipcRenderer.invoke('update:dismissNotice',version),
   sendFeedback:form=>ipcRenderer.invoke('feedback:submit',form),
+  getWelcomeState:()=>ipcRenderer.invoke('welcome:getState'),
+  completeWelcome:()=>ipcRenderer.invoke('welcome:complete'),
   onUpdateState:handler=>{if(typeof handler==='function')ipcRenderer.on('update:state',(_evt,data)=>handler(data));},
   onOpenUpdate:handler=>{if(typeof handler==='function')ipcRenderer.on('update:open',()=>handler());},
   getAutostart:()=>ipcRenderer.invoke('settings:getAutostart'),

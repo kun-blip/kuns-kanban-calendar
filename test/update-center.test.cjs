@@ -6,9 +6,10 @@ const { shouldAutoPrompt, initUpdateCenter } = require('../renderer/update-cente
 function environment({ initialState = {phase:'idle', version:'1.7.2'}, initiallyHidden = false, preference = '' } = {}) {
   const ids = ['updateOverlay','updateLaunch','updateAction','updateMessage','updateCurrent',
     'updateProgress','updateProgressBar','updateDialogTitle','updateLaunchText','updateClose',
-    'updateLater','feedbackOverlay','shade'];
+    'updateLater','feedbackOverlay','welcomeOverlay','shade'];
   const elements = Object.fromEntries(ids.map(id => [id, {
-    id, hidden: ['updateOverlay','feedbackOverlay','shade'].includes(id),
+    id, hidden: ['updateOverlay','feedbackOverlay','welcomeOverlay','shade'].includes(id),
+    dataset:{pending:'false'},
     style:{}, classList:{toggle(){}}, textContent:'', disabled:false,
     listeners:{}, addEventListener(event,callback){this.listeners[event] = callback;},
     click(){this.listeners.click?.({target:this});}
@@ -149,4 +150,20 @@ test('A stale IPC state snapshot cannot erase a newer available event', async ()
   await drain();
   assert.equal(e.elements.updateAction.textContent,'다운로드');
   assert.match(e.elements.updateCurrent.textContent,/v1\.7\.3/);
+});
+
+
+test('First-launch welcome blocks update popup until the introduction closes', async () => {
+  const e = environment({initialState:oldVersion});
+  e.elements.welcomeOverlay.dataset.pending='true';
+  initUpdateCenter(e.win,e.doc,e.bridge);
+  await drain();
+  assert.equal(e.elements.updateOverlay.hidden,true,'startup gating');
+  e.elements.welcomeOverlay.dataset.pending='false';
+  e.elements.welcomeOverlay.hidden=false;
+  e.doc.fire('welcome:changed');
+  assert.equal(e.elements.updateOverlay.hidden,true,'welcome has priority');
+  e.elements.welcomeOverlay.hidden=true;
+  e.doc.fire('welcome:changed');
+  assert.equal(e.elements.updateOverlay.hidden,false,'update shown after welcome closes');
 });

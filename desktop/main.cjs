@@ -10,6 +10,7 @@ const { centeredCalendarBounds } = require('./window-bounds.cjs');
 const { createUpdateController } = require('./update-controller.cjs');
 const { shouldAnnounceUpdate } = require('./update-notice.cjs');
 const { createFeedbackController } = require('./feedback.cjs');
+const { shouldShowWelcome } = require('./welcome-state.cjs');
 const feedbackConfig = require('./feedback-config.json');
 const packageJson = require('../package.json');
 const packagedReleaseConfig = require('./release-config.json');
@@ -33,6 +34,7 @@ let updateController = null;
 const feedbackController = createFeedbackController({endpoint:feedbackConfig.endpoint,version:app.getVersion()});
 let lastNotifiedUpdateVersion = '';
 let dismissedUpdateVersionThisRun = '';
+let welcomeEligible = false;
 function showAvailableUpdateNotice(state) {
   if (!shouldAnnounceUpdate(state, dismissedUpdateVersionThisRun, lastNotifiedUpdateVersion)) return;
   // The in-app dialog is primary when the calendar is on screen.
@@ -60,6 +62,17 @@ const userDir = () => app.getPath('userData');
 const dataFile = () => path.join(userDir(), 'calendar-data.json');
 const settingsFile = () => path.join(userDir(), 'settings.json');
 const firedFile = () => path.join(userDir(), 'reminders-fired.json');
+const welcomeFile = () => path.join(userDir(), 'welcome-complete.json');
+function detectWelcomeEligibility() {
+  // Capture before renderer initialization creates calendar-data.json.
+  return shouldShowWelcome({
+    hasMarker: fs.existsSync(welcomeFile()),
+    hasCalendar: fs.existsSync(dataFile()),
+    hasSettings: fs.existsSync(settingsFile()),
+    hasReminders: fs.existsSync(firedFile()),
+    hasBackups: fs.existsSync(path.join(userDir(), 'auto-backups'))
+  });
+}
 function autoBackupFolder() {
   const configured=loadSettings().backupFolder;
   return configured && fs.existsSync(configured) && fs.statSync(configured).isDirectory()
@@ -218,6 +231,18 @@ function createTray() {
   } catch (err) { console.warn('Unable to create tray:', err); }
 }
 function registerIpc() {
+  ipcMain.handle('welcome:getState', () => ({ shouldShow: welcomeEligible }));
+  ipcMain.handle('welcome:complete', () => {
+    if (!welcomeEligible) return { ok: true };
+    try {
+      atomicWrite(welcomeFile(), JSON.stringify({ completed: true, at: new Date().toISOString() }));
+      welcomeEligible = false;
+      return { ok: true };
+    } catch (err) {
+      console.error('Could not save welcome completion:', err);
+      return { ok: false, message: '첫 실행 안내 상태를 저장할 수 없습니다.' };
+    }
+  });
   ipcMain.handle('update:getState',()=>updateController?.current()||{phase:'disabled',version:app.getVersion(),message:'업데이트 준비 중'});
   ipcMain.handle('update:check',()=>updateController?.check(true));
   ipcMain.handle('update:download',()=>updateController?.download());
@@ -374,6 +399,7 @@ else {
     }
   });
   app.whenReady().then(() => {
+    welcomeEligible = detectWelcomeEligibility();
     registerIpc(); createWindow(); createTray();
     updateController=createUpdateController({
       app,pkg:packageJson,packagedConfig:packagedReleaseConfig,updaterFactory:()=>require('electron-updater').autoUpdater,
