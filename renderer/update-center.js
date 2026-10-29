@@ -52,11 +52,13 @@
     function isBlocked() {
       const feedback = el('feedbackOverlay');
       const welcome = el('welcomeOverlay');
+      const releaseNotes = el('releaseNotesOverlay');
       const shade = el('shade');
       const active = doc.activeElement;
       const editing = active && (['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable);
       return !overlay.hidden || (feedback && !feedback.hidden) ||
         (welcome && (!welcome.hidden || welcome.dataset?.pending === 'true')) ||
+        (releaseNotes && (!releaseNotes.hidden || releaseNotes.dataset?.pending === 'true')) ||
         (shade && !shade.hidden) || Boolean(editing);
     }
     function maybeAutoPrompt() {
@@ -102,6 +104,7 @@
     win.addEventListener('focus', maybeAutoPrompt);
     doc.addEventListener('visibilitychange', maybeAutoPrompt);
     doc.addEventListener('welcome:changed', maybeAutoPrompt);
+    doc.addEventListener('release-notes:changed', maybeAutoPrompt);
     // When editing or another modal ends, a pending update should not be lost.
     doc.addEventListener('focusout', () => setTimeout(maybeAutoPrompt, 0));
     doc.addEventListener('click', () => setTimeout(maybeAutoPrompt, 0));

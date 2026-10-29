@@ -520,8 +520,20 @@ html[data-theme=dark] .widget-todo-edit,html[data-theme=dark] .widget-todo-save,
    <p id="updateCurrent">현재 버전 확인 중</p>
    <div class="update-message" id="updateMessage">GitHub Releases 연결 상태를 확인하고 있어요.</div>
    <div class="update-progress" id="updateProgress" hidden><div id="updateProgressBar"></div></div>
-   <div class="update-actions"><button type="button" class="btn" id="updateLater">나중에</button><button type="button" class="btn primary" id="updateAction">업데이트 확인</button></div>
+   <div class="update-actions"><button type="button" class="btn release-notes-entry" id="releaseNotesOpen">패치노트 보기</button><button type="button" class="btn" id="updateLater">나중에</button><button type="button" class="btn primary" id="updateAction">업데이트 확인</button></div>
  </section>
+</div>
+<!-- After a successful upgrade, the newest release notes are shown once. -->
+<div class="release-notes-overlay" id="releaseNotesOverlay" hidden>
+  <section class="release-notes-dialog" role="dialog" aria-modal="true" aria-labelledby="releaseNotesTitle" aria-describedby="releaseNotesSubtitle">
+    <div class="update-top"><div><div class="update-eyebrow">KUN'S KANBAN CALENDAR · WHAT'S NEW</div><h2 id="releaseNotesTitle">업데이트 패치노트</h2></div><button class="btn icon-only ghost release-notes-close" type="button" id="releaseNotesClose" aria-label="패치노트 닫기">✕</button></div>
+    <p id="releaseNotesSubtitle" class="release-notes-subtitle">이번 업데이트에서 달라진 내용을 확인하세요.</p>
+    <label class="release-notes-version-label" for="releaseNotesVersion">업데이트 버전</label>
+    <select id="releaseNotesVersion" class="release-notes-version" aria-label="업데이트 패치노트 버전 선택"></select>
+    <div class="release-notes-list" id="releaseNotesList" aria-live="polite"></div>
+    <p class="release-notes-status" id="releaseNotesStatus" role="status" aria-live="polite"></p>
+    <button class="btn primary release-notes-done" type="button" id="releaseNotesDone">확인했어요</button>
+  </section>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="sharing-overlay" id="sharingOverlay" hidden>
@@ -604,6 +616,23 @@ html[data-theme=dark] .event-checklist-section.event-fold,html[data-theme=dark] 
 .share-role{width:auto;min-width:112px;padding:6px;font-size:12px}
 .share-contact-entry{display:grid;grid-template-columns:1fr 1.3fr;gap:7px}.share-contact-entry button{grid-column:1 / -1}
 .share-history{display:grid;gap:4px;border-top:1px solid var(--line,#eee);padding-top:7px}.share-history small{color:var(--muted,#8892a4)}
+
+/* v1.9.8 — automatically displayed once after an update; same dark/light tokens as update center. */
+.release-notes-overlay{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:18px;background:rgba(18,24,39,.64)}
+.release-notes-dialog{width:min(525px,100%);max-height:calc(100vh - 36px);overflow-y:auto;overscroll-behavior:contain;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:20px;padding:25px;box-shadow:0 25px 75px rgba(10,17,38,.3)}
+.release-notes-dialog .update-top{align-items:flex-start}.release-notes-dialog .update-top h2{font-size:22px;letter-spacing:-.5px;margin:8px 0 0}
+.release-notes-close{width:36px;min-width:36px;max-width:36px;height:36px;min-height:36px;max-height:36px;flex:0 0 36px;padding:0}
+.release-notes-subtitle{font-size:12.5px;line-height:1.7;color:var(--sub);margin:12px 0 18px}
+.release-notes-version-label{display:block;font-size:11px;font-weight:760;color:var(--muted);margin-bottom:7px}
+.release-notes-version{display:block;width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line-strong);border-radius:10px;min-height:40px;padding:8px 12px}
+.release-notes-list{display:grid;gap:9px;margin-top:17px}
+.release-notes-item{border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:var(--bg)}
+.release-notes-item strong{display:block;font-size:13px;font-weight:780;color:var(--text);margin-bottom:5px}
+.release-notes-item p{font-size:12px;line-height:1.65;color:var(--sub);margin:0;word-break:keep-all}
+.release-notes-status{color:#d2556a;font-size:12px;min-height:0;margin:10px 0 0}
+.release-notes-done{width:100%;min-height:43px;margin-top:18px;font-weight:760}
+.release-notes-entry{margin-right:auto}
+@media(max-width:520px){.release-notes-dialog{padding:20px}.update-actions{flex-wrap:wrap}.release-notes-entry{margin-right:0}}
 </style>
 <script src="./planner.js"></script>
 <script src="./quick-links.js"></script>
@@ -612,6 +641,7 @@ html[data-theme=dark] .event-checklist-section.event-fold,html[data-theme=dark] 
 <script src="./sharing.js"></script>
 <script src="./app.js"></script>
 <script src="./welcome.js"></script>
+<script src="./release-notes.js"></script>
 <script src="./update-center.js"></script>
 </body>
 </html>

@@ -12,6 +12,8 @@ const { createUpdateController } = require('./update-controller.cjs');
 const { shouldAnnounceUpdate } = require('./update-notice.cjs');
 const { createFeedbackController } = require('./feedback.cjs');
 const { shouldShowWelcome } = require('./welcome-state.cjs');
+const { shouldShowReleaseNotes, currentNotes } = require('./release-notes-state.cjs');
+const releaseNotesCatalog = require('./release-notes.json');
 const { safeExternalUrl } = require('./external-url.cjs');
 const { createSharingClient, validateToken } = require('./sharing-client.cjs');
 const sharingConfig = require('./sharing-config.json');
@@ -42,6 +44,8 @@ const feedbackController = createFeedbackController({endpoint:feedbackConfig.end
 let lastNotifiedUpdateVersion = '';
 let dismissedUpdateVersionThisRun = '';
 let welcomeEligible = false;
+let pendingReleaseNotesVersion = '';
+let releaseNotesStartupError = '';
 let queuedInviteCode = '';
 let sharingClient = null;
 function handleInviteUrl(raw) {
@@ -83,6 +87,36 @@ const dataFile = () => path.join(userDir(), 'calendar-data.json');
 const settingsFile = () => path.join(userDir(), 'settings.json');
 const firedFile = () => path.join(userDir(), 'reminders-fired.json');
 const welcomeFile = () => path.join(userDir(), 'welcome-complete.json');
+const releaseNotesFile = () => path.join(userDir(), 'release-notes-seen.json');
+function initializeReleaseNotes() {
+  const currentVersion = app.getVersion();
+  const marker = readJson(releaseNotesFile(), {});
+  const previousVersion = typeof marker.lastSeenVersion === 'string' ? marker.lastSeenVersion : '';
+  const shouldShow = shouldShowReleaseNotes({
+    currentVersion, previousVersion, existingUser: !welcomeEligible,
+    packaged: app.isPackaged, hasNotes: Boolean(currentNotes(releaseNotesCatalog, currentVersion))
+  });
+  pendingReleaseNotesVersion = shouldShow ? currentVersion : '';
+  releaseNotesStartupError = '';
+  if (!shouldShow && previousVersion !== currentVersion) {
+    try { atomicWrite(releaseNotesFile(), JSON.stringify({lastSeenVersion:currentVersion})); }
+    catch(err) { console.warn('Release notes baseline could not be saved:', err); }
+  }
+}
+function acknowledgeReleaseNotes(version) {
+  if (version !== app.getVersion()) return {ok:false, message:'현재 버전과 일치하지 않습니다.'};
+  try {
+    atomicWrite(releaseNotesFile(), JSON.stringify({lastSeenVersion:version}));
+    pendingReleaseNotesVersion = '';
+    releaseNotesStartupError = '';
+    return {ok:true};
+  } catch(err) {
+    releaseNotesStartupError = '패치노트 확인 상태를 저장하지 못했어요. 다시 시도해 주세요.';
+    console.error('Release notes acknowledgement failed:',err);
+    return {ok:false,message:releaseNotesStartupError};
+  }
+}
+
 function detectWelcomeEligibility() {
   // Capture before renderer initialization creates calendar-data.json.
   return shouldShowWelcome({
@@ -309,6 +343,16 @@ function registerIpc() {
     clipboard.writeText(`쿤스 칸반 캘린더 일정 초대\n앱에서 '일정 공유 → 초대 수락'을 열어 아래 링크/코드를 입력해 주세요.\nkuuns-kanban://invite/${token}\n초대 코드: ${token}\n유효 기간: 7일 · 1회 사용`);
     return {ok:true};
   });
+  secureHandle('releaseNotes:getStartup', () => ({
+    shouldShow: Boolean(pendingReleaseNotesVersion),
+    version: app.getVersion(),
+    message: releaseNotesStartupError
+  }));
+  secureHandle('releaseNotes:getCatalog', () => ({
+    currentVersion: app.getVersion(),
+    releases: releaseNotesCatalog
+  }));
+  secureHandle('releaseNotes:acknowledge', (_event, version) => acknowledgeReleaseNotes(version));
   secureHandle('welcome:getState', () => ({ shouldShow: welcomeEligible }));
   secureHandle('welcome:complete', () => {
     if (!welcomeEligible) return { ok: true };
@@ -492,6 +536,7 @@ else {
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     welcomeEligible = detectWelcomeEligibility();
+    initializeReleaseNotes();
     registerIpc(); createWindow(); createTray();
     if (process.platform === 'darwin') {
       Menu.setApplicationMenu(Menu.buildFromTemplate([
