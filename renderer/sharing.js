@@ -7,6 +7,8 @@
     let session={signedIn:false,email:'',userId:null}, rows=[],contacts=[],inbox=[],roles=[];
     let opened=false,selectedId=null,pending='',pendingInvite='',inFlight=false;
     let draft=[], details={members:[],invites:[],history:[]}, seen=new Set(),initialInbox=true;
+    // Keep each section's expanded state while inbox/contact lists refresh.
+    const foldOpen={legacy:false,shared:false,contacts:false};
     const uuid=v=>typeof v==='string' && /^[0-9a-f-]{36}$/i.test(v);
     function line(parent,tag,text,cls){const el=document.createElement(tag);el.textContent=text??'';if(cls)el.className=cls;parent.append(el);return el;}
     function hint(parent,text){line(parent,'p',text,'share-hint');}
@@ -14,11 +16,30 @@
       const b=line(parent,'button',text,cls);b.type='button';b.addEventListener('click',async()=>{
         if(inFlight)return;inFlight=true;b.disabled=true;
         try{await action();}catch(e){notify(e?.message||'공유 작업 실패');}
-        finally{inFlight=false;b.disabled=false;}
+        finally{inFlight=false;b.disabled=typeof b._isBlocked==='function'?b._isBlocked():false;}
       });return b;
     }
     function field(parent,placeholder,value='',type='text'){
       const el=line(parent,'input','','share-input');el.type=type;el.placeholder=placeholder;el.value=value;return el;
+    }
+    function fold(parent,key,title,forceOpen=false){
+      const details=line(parent,'details','','share-fold');
+      details.open=forceOpen||!!foldOpen[key];
+      const summary=line(details,'summary',title,'share-fold-summary');
+      summary.setAttribute('aria-label',title+' 접기 또는 펼치기');
+      details.addEventListener('toggle',()=>{foldOpen[key]=details.open;});
+      return line(details,'div','','share-fold-body');
+    }
+    function editLabel(parent,caption,placeholder,value='',type='text'){
+      const wrapper=line(parent,'label','','share-edit-label');
+      line(wrapper,'span',caption);
+      return field(wrapper,placeholder,value,type);
+    }
+    function groupSuggestions(input,groupNames,key){
+      const id='contact-groups-'+key.replace(/[^a-z0-9_-]/gi,'');
+      const options=line(input.parentElement,'datalist');options.id=id;
+      for(const name of groupNames){const option=line(options,'option');option.value=name;}
+      input.setAttribute('list',id);
     }
     function roleMenu(parent,role='viewer',onChange){
       const el=line(parent,'select','','share-input share-role');
@@ -164,8 +185,16 @@
           const gr=line(section,'div','','share-list-item');
           const count=contacts.filter(c=>c.group_name===groupName).length;
           line(gr,'span',`${groupName} · ${count}명`);
-          btn(gr,'이름 변경',async()=>{const next=prompt('그룹 새 이름',groupName);if(next===null)return;await bridge.sharingContactGroupRename(groupName,next);await refresh();});
+          btn(gr,'이름 변경',()=>{editor.hidden=!editor.hidden;if(!editor.hidden)newGroup.focus();});
           btn(gr,'그룹 해제',async()=>{if(!confirm(groupName+' 그룹을 해제할까요? 연락처는 삭제되지 않아요.'))return;await bridge.sharingContactGroupClear(groupName);await refresh();},'btn sm');
+          const editor=line(section,'div','','share-inline-editor');editor.hidden=true;
+          const newGroup=editLabel(editor,'새 그룹 이름','예: 디자인팀',groupName);newGroup.maxLength=60;
+          const actions=line(editor,'div','','share-options');
+          btn(actions,'저장',async()=>{
+            const value=newGroup.value.trim();if(!value){notify('그룹 이름을 입력해 주세요.');return;}
+            await bridge.sharingContactGroupRename(groupName,value);await refresh();notify('그룹 이름을 변경했어요.');
+          },'btn sm primary');
+          btn(actions,'취소',()=>{editor.hidden=true;newGroup.value=groupName;},'btn sm');
         }
       }
       for(const c of contacts){
@@ -183,13 +212,26 @@
           }catch(e){notify(e.message||'설정 저장 실패');await refresh();}
         }
         autoInviteCheck.addEventListener('change',updateSetting);autoAcceptCheck.addEventListener('change',updateSetting);
-        btn(one,'수정',async()=>{
-          const newName=prompt('동료 닉네임',c.nickname);if(newName===null)return;
-          const newMail=prompt('동료 이메일',c.email);if(newMail===null)return;
-          const newGroup=prompt('그룹 이름 (비워두면 그룹 없음)',c.group_name||'');if(newGroup===null)return;
-          await bridge.sharingContactUpdate(c.id,newName,newMail,newGroup);await refresh();
-        });
+        btn(one,'수정',()=>{editor.hidden=!editor.hidden;if(!editor.hidden)editName.focus();});
         btn(one,'삭제',async()=>{if(!confirm(c.nickname+' 연락처를 삭제할까요?'))return;await bridge.sharingContactRemove(c.id);await refresh();},'btn sm danger');
+        // Electron does not support window.prompt(); edit directly in the app.
+        const editor=line(section,'div','','share-inline-editor');editor.hidden=true;
+        const editName=editLabel(editor,'동료 닉네임','동료 닉네임',c.nickname);editName.maxLength=60;
+        const editMail=editLabel(editor,'동료 이메일','name@example.com',c.email,'email');editMail.maxLength=254;
+        const editGroup=editLabel(editor,'소속 그룹 (선택)','기존 그룹 선택 또는 새 그룹 입력',c.group_name||'');editGroup.maxLength=60;
+        groupSuggestions(editGroup,groups,c.id);
+        const actions=line(editor,'div','','share-options');
+        btn(actions,'저장',async()=>{
+          const nickname=editName.value.trim(),email=editMail.value.trim().toLowerCase(),group=editGroup.value.trim();
+          if(!nickname || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+            notify('닉네임과 올바른 이메일을 입력해 주세요.');return;
+          }
+          await bridge.sharingContactUpdate(c.id,nickname,email,group);
+          await refresh();notify('동료 정보를 수정했어요.');
+        },'btn sm primary');
+        btn(actions,'취소',()=>{
+          editName.value=c.nickname;editMail.value=c.email;editGroup.value=c.group_name||'';editor.hidden=true;
+        },'btn sm');
       }
     }
     function renderInbox(parent){
@@ -209,8 +251,8 @@
       hint(section,`${r.start_date} ~ ${r.end_date} · ${isMine(r)?'작성자':editable?'편집 가능':'읽기 전용'} · 수정 버전 ${r.revision||1}`);
       if(r.event_data?.gameName)line(section,'p','게임 타이틀: '+r.event_data.gameName,'share-hint');
       if(!editable){
-        line(section,'h4','작업 상태','share-heading');
-        line(section,'p',({'todo':'예정','doing':'진행','done':'완료'})[r.event_data?.status]||'예정','share-description');
+        line(section,'h4','상태','share-heading');
+        line(section,'p',({'todo':'예정 - 소프트런칭','doing':'진행 - 라이브','done':'완료'})[r.event_data?.status]||'예정 - 소프트런칭','share-description');
         line(section,'h4','자세한 메모','share-heading');
         line(section,'p',r.description||'등록된 메모가 없어요.','share-description');
         if(r.event_data?.url && /^https?:\/\//i.test(r.event_data.url)){
@@ -247,7 +289,7 @@
         const addCheck=field(section,'새 체크 항목');
         btn(section,'체크 항목 추가',()=>{if(addCheck.value.trim()&&checklist.length<40){checklist.push({text:addCheck.value.trim().slice(0,160),done:false});addCheck.value='';drawChecklist();}},'btn sm');
         const status=line(section,'select','','share-input');
-        for(const [v,label] of [['todo','예정'],['doing','진행'],['done','완료']]){
+        for(const [v,label] of [['todo','예정 - 소프트런칭'],['doing','진행 - 라이브'],['done','완료']]){
           const opt=line(status,'option',label);opt.value=v;
         }
         status.value=r.event_data?.status||'todo';
@@ -371,14 +413,18 @@
         }
       }
       renderInbox(content);
-      const codeSection=line(content,'section','','share-section');line(codeSection,'h3','기존 초대 코드 수락','share-heading');
+      const codeSection=fold(content,'legacy','기존 초대 코드 수락',!!pendingInvite);
       hint(codeSection,'기존 방식으로 받은 64자리 초대 코드도 계속 사용할 수 있어요.');
       const code=field(codeSection,'초대 코드 또는 kuuns-kanban://invite/...',pendingInvite);
-      btn(codeSection,'초대 수락',async()=>{
-        await bridge.sharingAccept(code.value);pendingInvite='';await bridge.sharingConsumeInvite();
+      const accept=btn(codeSection,'초대 수락',async()=>{
+        if(!code.value.trim())return;
+        await bridge.sharingAccept(code.value.trim());pendingInvite='';await bridge.sharingConsumeInvite();
         await refresh();notify('공유 일정이 캘린더에 표시됩니다.');
-      },'btn primary');
-      const listing=line(content,'section','','share-section');line(listing,'h3','공유된 일정','share-heading');
+      },'btn sm primary');
+      accept._isBlocked=()=>!code.value.trim();
+      function updateAcceptState(){accept.disabled=accept._isBlocked();accept.title=accept.disabled?'초대 코드를 입력하면 버튼이 활성화돼요.':'초대 코드 수락';}
+      code.addEventListener('input',updateAcceptState);updateAcceptState();
+      const listing=fold(content,'shared',`공유된 일정 (${rows.length})`);
       btn(listing,'새로고침',async()=>{await refresh();notify('동기화가 완료됐어요.');});
       if(!rows.length)hint(listing,'아직 공유된 일정이 없어요.');
       for(const item of rows){
@@ -389,7 +435,7 @@
         btn(actions,'관리/보기',async()=>{selectedId='shared:'+item.id;render();await detailLoad();});
         if(isMine(item))btn(actions,'일정 삭제',async()=>{await deleteOwned(item);},'btn sm danger');
       }
-      renderContacts(content);
+      renderContacts(fold(content,'contacts',`동료 관리 (${contacts.length})`));
     }
     $('sharingClose').addEventListener('click',close);
     overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
