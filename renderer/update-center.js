@@ -46,7 +46,7 @@
       msg.textContent = state.message || 'GitHub Releases 상태를 확인하세요.';
       progress.hidden = state.phase !== 'downloading';
       bar.style.width = Math.max(0, Math.min(100, Number(state.percent) || 0)) + '%';
-      action.textContent = names[state.phase] || '업데이트 확인';
+      action.textContent = bridge.platform==='darwin'&&state.phase==='available'?'Mac용 DMG 받기':(names[state.phase] || '업데이트 확인');
       action.disabled = ['disabled', 'checking', 'downloading', 'installing'].includes(state.phase);
     }
     function isBlocked() {

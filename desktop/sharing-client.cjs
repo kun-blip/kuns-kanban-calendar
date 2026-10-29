@@ -18,6 +18,8 @@ function normalizeEvent(value) {
   if (!validDate(start) || !validDate(end) || end < start) throw new Error('공유 일정의 날짜가 올바르지 않습니다.');
   const eventId = String(value.id || '');
   if (!/^[a-zA-Z0-9_-]{1,100}$/.test(eventId)) throw new Error('일정 ID 형식이 잘못됐습니다.');
+  const safeUrl = typeof value.url === 'string' && /^https?:\/\/[^\s]+$/i.test(value.url) && value.url.length<=1500 ? value.url : '';
+  const checklist = Array.isArray(value.checklist) ? value.checklist.slice(0,40).map(c=>({text:String(c?.text||'').slice(0,160),done:!!c?.done})).filter(c=>c.text) : [];
   return {
     local_event_id: eventId,
     title: String(value.title).trim().slice(0, 200),
@@ -25,7 +27,8 @@ function normalizeEvent(value) {
     start_date: start, end_date: end,
     event_data: {
       color: /^#[0-9a-fA-F]{6}$/.test(value.color || '') ? value.color : '#5367e8',
-      status: ['todo','doing','done'].includes(value.status) ? value.status : 'todo'
+      status: ['todo','doing','done'].includes(value.status) ? value.status : 'todo',
+      url:safeUrl,checklist,gameName:String(value.gameName||'').slice(0,50)
     }
   };
 }
@@ -143,17 +146,30 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
       return authorized('/rest/v1/rpc/remove_shared_event_member',{method:'POST',body:{p_event_id:eventId,p_user_id:userId}});
     },
     unshare:async eventId=>authorized('/rest/v1/shared_events?id=eq.'+encodeURIComponent(eventId),{method:'DELETE'}),
-    contactsList:()=>authorized('/rest/v1/sharing_contacts?select=id,nickname,email&order=nickname.asc'),
-    contactAdd:async (nickname,email)=>{
+    contactsList:()=>authorized('/rest/v1/sharing_contacts?select=id,nickname,email,group_name,auto_accept,auto_invite&order=nickname.asc'),
+    autoAcceptInvites:()=>authorized('/rest/v1/rpc/sharing_accept_trusted_invites',{method:'POST',body:{}}),
+    contactAdd:async (nickname,email,groupName='')=>{
       nickname=String(nickname||'').trim().slice(0,60);email=validateEmail(email);
       if(!nickname)throw new Error('동료 닉네임을 입력해 주세요.');
-      const rows=await authorized('/rest/v1/sharing_contacts',{method:'POST',body:{nickname,email,owner_id:session?.user?.id}});
+      const rows=await authorized('/rest/v1/sharing_contacts',{method:'POST',body:{nickname,email,group_name:String(groupName||'').trim().slice(0,60),owner_id:session?.user?.id}});
       return rows?.[0];
     },
-    contactUpdate:async(id,nickname,email)=>{
+    contactUpdate:async(id,nickname,email,groupName='')=>{
       nickname=String(nickname||'').trim().slice(0,60);email=validateEmail(email);
       if(!nickname)throw new Error('동료 닉네임을 입력해 주세요.');
-      return authorized('/rest/v1/sharing_contacts?id=eq.'+safeUuid(id),{method:'PATCH',body:{nickname,email}});
+      return authorized('/rest/v1/sharing_contacts?id=eq.'+safeUuid(id),{method:'PATCH',body:{nickname,email,group_name:String(groupName||'').trim().slice(0,60)}});
+    },
+    contactSettings:(id,settings)=>{
+      if(!settings||typeof settings.auto_accept!=='boolean'||typeof settings.auto_invite!=='boolean')throw new Error('동료 설정이 올바르지 않아요.');
+      return authorized('/rest/v1/sharing_contacts?id=eq.'+safeUuid(id),{method:'PATCH',body:{auto_accept:settings.auto_accept,auto_invite:settings.auto_invite}});
+    },
+    contactGroupRename:(from,to)=>{
+      from=String(from||'').trim();to=String(to||'').trim();if(!from||!to||to.length>60)throw new Error('그룹 이름을 확인해 주세요.');
+      return authorized('/rest/v1/sharing_contacts?group_name=eq.'+encodeURIComponent(from),{method:'PATCH',body:{group_name:to}});
+    },
+    contactGroupClear:name=>{
+      name=String(name||'').trim();if(!name)throw new Error('그룹을 선택해 주세요.');
+      return authorized('/rest/v1/sharing_contacts?group_name=eq.'+encodeURIComponent(name),{method:'PATCH',body:{group_name:''}});
     },
     contactRemove:id=>authorized('/rest/v1/sharing_contacts?id=eq.'+safeUuid(id),{method:'DELETE'}),
     inviteContacts:async(eventId,recipients)=>{

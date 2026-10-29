@@ -22,7 +22,7 @@ test('event create flow offers inline invited colleagues and remains local-first
  assert.match(ui,/saveAndInvite\(/);
  assert.match(ui,/sharingInviteContacts/);
  const app=fs.readFileSync(path.join(root,'renderer/app.js'),'utf8');
- assert.match(app,/sharing\.saveAndInvite\(record,invitees/);
+ assert.match(app,/sharing\.saveAndInvite\(\{\.\.\.record,gameName:/);
  assert.match(app,/data\.events\.push\(record\)/);
 });
 test('role editing and server revision conflict are required',()=>{

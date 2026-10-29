@@ -33,11 +33,11 @@ test('Mac test app never silently downloads/installs unsigned updates',()=>{
  let called = false;
  const controller=createUpdateController({
    app:{isPackaged:true,getVersion:()=>pkg.version},pkg,platform:'darwin',
-   updaterFactory:()=>{called=true;}
+   updaterFactory:()=>{called=true;},clock:()=>0,every:()=>0
  });
  const state=controller.start();
- assert.equal(state.phase,'disabled');
- assert.match(state.message,/서명되지 않아 자동 업데이트를 지원하지 않아요/);
+ assert.equal(state.phase,'idle');
+ assert.match(state.message,/직접 진행/);
  assert.equal(called,false);
 });
 test('Mac menu bar, command shortcut, tray and system-specific help are configured',()=>{

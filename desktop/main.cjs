@@ -284,8 +284,12 @@ function registerIpc() {
   shareHandle('leave',id=>sharingClient.leave(id));
   shareHandle('unshare',id=>sharingClient.unshare(id));
   shareHandle('contactsList',()=>sharingClient.contactsList());
-  shareHandle('contactAdd',(name,email)=>sharingClient.contactAdd(name,email));
-  shareHandle('contactUpdate',(id,name,email)=>sharingClient.contactUpdate(id,name,email));
+  shareHandle('autoAcceptInvites',()=>sharingClient.autoAcceptInvites());
+  shareHandle('contactSettings',(id,settings)=>sharingClient.contactSettings(id,settings));
+  shareHandle('contactGroupRename',(from,to)=>sharingClient.contactGroupRename(from,to));
+  shareHandle('contactGroupClear',name=>sharingClient.contactGroupClear(name));
+  shareHandle('contactAdd',(name,email,group)=>sharingClient.contactAdd(name,email,group));
+  shareHandle('contactUpdate',(id,name,email,group)=>sharingClient.contactUpdate(id,name,email,group));
   shareHandle('contactRemove',id=>sharingClient.contactRemove(id));
   shareHandle('inviteContacts',(id,items)=>sharingClient.inviteContacts(id,items));
   shareHandle('inbox',()=>sharingClient.inbox());
@@ -503,7 +507,7 @@ else {
     }
     updateController=createUpdateController({
       app,pkg:packageJson,packagedConfig:packagedReleaseConfig,updaterFactory:()=>require('electron-updater').autoUpdater,
-      emit:broadcastUpdate,
+      emit:broadcastUpdate,openExternal:url=>shell.openExternal(url),
       beforeInstall:async()=>{await saveQueue.catch(()=>{});backupSnapshot();quitting=true;}
     });
     updateController.start();

@@ -11,13 +11,39 @@ function githubProvider(pkg,packagedConfig){
   if(valid(buildConfig))return {owner:buildConfig.owner,repo:buildConfig.repo};
   return null;
 }
-function createUpdateController({app,pkg,packagedConfig,updaterFactory,emit=()=>{},beforeInstall=async()=>{},clock=setTimeout,every=setInterval,platform=process.platform,logger=console}){
-  let updater=null,busy=false,interval=null,installing=false;
+function createUpdateController({app,pkg,packagedConfig,updaterFactory,emit=()=>{},beforeInstall=async()=>{},clock=setTimeout,every=setInterval,platform=process.platform,logger=console,fetchImpl=global.fetch,openExternal=async()=>{}}){
+  let updater=null,busy=false,interval=null,installing=false,macDownloadUrl='';
   const repo=githubProvider(pkg,packagedConfig);
   let state={phase:'disabled',version:app.getVersion(),newVersion:'',percent:0,message:''};
   function publish(phase,extra={}){state={...state,...extra,phase};emit({...state});return {...state};}
   function current(){return {...state};}
+  async function checkMac(){
+    if(busy)return current();
+    busy=true;publish('checking',{message:'GitHub Releases에서 최신 Mac 버전을 확인하고 있어요.'});
+    try{
+      const endpoint=`https://api.github.com/repos/${repo.owner}/${repo.repo}/releases/latest`;
+      const response=await fetchImpl(endpoint,{headers:{'Accept':'application/vnd.github+json','User-Agent':'KunsKanbanCalendar'},signal:AbortSignal.timeout(12000)});
+      if(!response.ok)throw Error('GitHub HTTP '+response.status);
+      const release=await response.json();const tag=String(release?.tag_name||'');
+      if(!/^v\d+\.\d+\.\d+$/.test(tag))throw Error('Invalid release tag');
+      const latest=tag.slice(1),currentVersion=app.getVersion();
+      const expected=`KuunsKanbanCalendar-${latest}-mac-universal.dmg`;
+      const asset=(Array.isArray(release.assets)?release.assets:[]).find(a=>a?.name===expected &&
+        typeof a.browser_download_url==='string' &&
+        a.browser_download_url.startsWith(`https://github.com/${repo.owner}/${repo.repo}/releases/download/${tag}/`) &&
+        a.browser_download_url.endsWith('/'+expected));
+      macDownloadUrl=asset?.browser_download_url||`https://github.com/${repo.owner}/${repo.repo}/releases/latest`;
+      const parts=s=>s.split('.').map(Number);
+      const a=parts(latest),b=parts(currentVersion);
+      const newer=a.some((n,i)=>n>b[i]&&a.slice(0,i).every((v,j)=>v===b[j]));
+      if(newer)publish('available',{newVersion:latest,percent:0,message:`새 버전 v${latest}가 있어요. Mac 시험판은 다운로드 후 DMG에서 새 앱을 직접 교체해야 합니다.`});
+      else publish('current',{newVersion:'',percent:0,message:'현재 최신 버전이에요.'});
+    }catch(e){logger.warn('Mac release check failed',e);publish('error',{message:'Mac 버전 확인에 실패했어요. 인터넷과 공개 GitHub Releases를 확인해 주세요.'});}
+    finally{busy=false;}
+    return current();
+  }
   async function check(manual=false){
+    if(platform==='darwin'&&repo&&app.isPackaged)return checkMac();
     if(!updater)return publish('disabled',{message:platform==='darwin'?'Mac 시험판은 자동 업데이트를 지원하지 않아요. GitHub Releases에서 최신 DMG를 설치해 주세요.':repo?'설치형 Windows 앱에서 업데이트를 확인할 수 있어요.':'GitHub Releases 저장소를 먼저 연결해 주세요.'});
     if(busy||['downloading','downloaded','installing'].includes(state.phase))return current();
     busy=true;publish('checking',{message:'GitHub Releases에서 새 버전을 확인 중이에요.',percent:0});
@@ -27,6 +53,11 @@ function createUpdateController({app,pkg,packagedConfig,updaterFactory,emit=()=>
     return current();
   }
   async function download(){
+    if(platform==='darwin'&&repo&&state.phase==='available'){
+      try{await openExternal(macDownloadUrl||`https://github.com/${repo.owner}/${repo.repo}/releases/latest`);}
+      catch(e){logger.warn('Open Mac download failed',e);publish('error',{message:'다운로드 페이지를 열 수 없어요. GitHub Releases에서 직접 확인해 주세요.'});}
+      return current();
+    }
     if(!updater||state.phase!=='available')return current();
     publish('downloading',{message:'업데이트 다운로드를 시작했어요.',percent:0});
     try{await updater.downloadUpdate();}
@@ -45,7 +76,13 @@ function createUpdateController({app,pkg,packagedConfig,updaterFactory,emit=()=>
   }
   function start(){
     if(!repo)return publish('disabled',{message:'GitHub Releases 주소를 설정해야 자동 업데이트를 사용할 수 있어요.'});
-    if(platform==='darwin')return publish('disabled',{message:'Mac 시험판은 아직 서명되지 않아 자동 업데이트를 지원하지 않아요. GitHub Releases에서 새 DMG를 설치해 주세요.'});
+    if(platform==='darwin'){
+      if(!app.isPackaged)return publish('disabled',{message:'설치형 Mac 앱에서 새 버전 알림을 확인할 수 있어요.'});
+      publish('idle',{message:'Mac용 새 버전 자동 확인이 설정됐어요. 설치는 GitHub에서 직접 진행해 주세요.'});
+      clock(()=>{void check(false);},4000);
+      interval=every(()=>{void check(false);},6*60*60*1000);
+      return current();
+    }
     if(!app.isPackaged||platform!=='win32')return publish('disabled',{message:'Windows에 설치된 앱에서 업데이트를 확인할 수 있어요.'});
     try{
       updater=updaterFactory();

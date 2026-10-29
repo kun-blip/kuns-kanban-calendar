@@ -359,7 +359,7 @@ for(const weekStart of monthWeeks()){
    const original=data.events.find(x=>x.id===event.id);if(!original)return;
    original.start=newStart;original.end=newEnd;
    if(!isResize&&original.reminderAt)original.reminderAt=Planner.add(original.reminderAt.slice(0,10),delta)+original.reminderAt.slice(10);
-   lastDragAt=Date.now();$('undoTimeline').disabled=false;save();void sharing?.syncEditedEvent(original);renderCalendar();notify(isResize?'종료일을 변경했어요. ↶ 실행 취소 가능':'일정을 이동했어요. ↶ 실행 취소 가능');
+   lastDragAt=Date.now();$('undoTimeline').disabled=false;save();void sharing?.syncEditedEvent({...original,gameName:gameById(original.gameId)?.name||''});renderCalendar();notify(isResize?'종료일을 변경했어요. ↶ 실행 취소 가능':'일정을 이동했어요. ↶ 실행 취소 가능');
   }
   function cancel(){window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);block.classList.remove('dragging');block.style.removeProperty('transform');block.style.removeProperty('width');}
   window.addEventListener('pointermove',move);window.addEventListener('pointerup',end,{once:true});window.addEventListener('pointercancel',cancel,{once:true});
@@ -379,8 +379,9 @@ function renderGameSelect(selected='randomdice2'){
  for(const game of data.games){const opt=document.createElement('option');opt.value=game.id;opt.textContent=game.name;select.appendChild(opt);}
  select.value=selected===''?'':(data.games.some(g=>g.id===selected)?selected:(data.games[0]?.id||''));
   $('deleteGameBtn').disabled=!select.value;
+  $('editGameToggle').disabled=!select.value;
  }
-$('gameSelect').addEventListener('change',()=>{$('deleteGameBtn').disabled=!$('gameSelect').value;});
+$('gameSelect').addEventListener('change',()=>{const has=!!$('gameSelect').value;$('deleteGameBtn').disabled=!has;$('editGameToggle').disabled=!has;});
  $('deleteGameBtn').addEventListener('click',()=>{
   const id=$('gameSelect').value, game=gameById(id);if(!game)return;
   const count=data.events.filter(e=>e.gameId===id).length;
@@ -388,8 +389,19 @@ $('gameSelect').addEventListener('change',()=>{$('deleteGameBtn').disabled=!$('g
   data.games=data.games.filter(g=>g.id!==id);for(const e of data.events)if(e.gameId===id)e.gameId='';
   save();renderGameSelect(data.games[0]?.id||'');updateGameFilter();renderCalendar();notify('게임 타이틀을 삭제했어요. 기존 일정은 그대로 남아요.');
  });
- $('addGameToggle').addEventListener('click',()=>{$('gameCreator').hidden=!$('gameCreator').hidden;if(!$('gameCreator').hidden)$('newGameName').focus();});
-$('cancelGame').addEventListener('click',()=>{$('gameCreator').hidden=true;});
+let editingGameId=null;
+function openGameEditor(id=null){
+ const game=id?gameById(id):null;editingGameId=game?.id||null;
+ $('gameCreator').hidden=false;
+ $('gameNameLabel').textContent=game?'게임 타이틀 수정':'새 게임 타이틀 이름';
+ $('newGameName').value=game?.name||'';$('newGameIcon').value='';
+ $('gameIconPreview').hidden=!game?.icon;if(game?.icon)$('gameIconPreview').src=game.icon;
+ $('removeGameIconWrap').hidden=!game?.icon;$('removeGameIcon').checked=false;
+ $('saveGame').textContent=game?'변경사항 저장':'타이틀 등록';$('newGameName').focus();
+}
+$('addGameToggle').addEventListener('click',()=>{if(!$('gameCreator').hidden&&!editingGameId){$('gameCreator').hidden=true;return;}openGameEditor();});
+$('editGameToggle').addEventListener('click',()=>{const id=$('gameSelect').value;if(id)openGameEditor(id);});
+$('cancelGame').addEventListener('click',()=>{$('gameCreator').hidden=true;editingGameId=null;});
 const resizeGameIcon=async file=>{
  if(!file)return '';if(file.size>5*1024*1024)throw Error('아이콘 파일은 최대 5MB까지 지원해요.');
  if(!/^image\/(png|jpeg|webp|gif)$/.test(file.type))throw Error('PNG/JPG/WEBP/GIF 이미지만 지원해요.');
@@ -398,8 +410,18 @@ const resizeGameIcon=async file=>{
 };
 $('saveGame').addEventListener('click',async()=>{
  const name=$('newGameName').value.trim();if(!name){notify('게임 타이틀 이름을 입력해 주세요.');return;}
- if(data.games.some(g=>g.name.toLowerCase()===name.toLowerCase())){notify('이미 등록된 게임 타이틀이에요.');return;}
- try{const icon=await resizeGameIcon($('newGameIcon').files?.[0]);const item={id:uid(),name,icon};data.games.push(item);save();renderGameSelect(item.id);updateGameFilter();$('gameCreator').hidden=true;$('newGameName').value='';$('newGameIcon').value='';notify('게임 타이틀을 추가했어요.');}catch(error){notify(error.message||'아이콘을 불러오지 못했어요.');}
+ if(data.games.some(g=>g.id!==editingGameId&&g.name.toLowerCase()===name.toLowerCase())){notify('이미 등록된 게임 타이틀이에요.');return;}
+ try{
+ const existing=editingGameId?gameById(editingGameId):null;
+ if(editingGameId&&!existing)throw new Error('수정할 타이틀을 찾지 못했어요.');
+ const file=$('newGameIcon').files?.[0];
+ const icon=$('removeGameIcon').checked?'':file?await resizeGameIcon(file):(existing?.icon||'');
+ const item=existing||{id:uid(),name,icon};item.name=name;item.icon=icon;
+ if(!existing)data.games.push(item);
+ save();renderGameSelect(item.id);updateGameFilter();renderCalendar();renderWidget();
+ $('gameCreator').hidden=true;$('newGameName').value='';$('newGameIcon').value='';
+ editingGameId=null;notify(existing?'게임 타이틀을 수정했어요. 기존 일정의 연결도 유지돼요.':'게임 타이틀을 추가했어요.');
+}catch(error){notify(error.message||'아이콘을 불러오지 못했어요.');}
 });
 function reminderDefault(dateKey){return `${dateKey}T09:00`;}
  function computeReminderAt(){
@@ -479,12 +501,12 @@ if(!DESKTOP)document.addEventListener('visibilitychange',()=>{if(!document.hidde
  function addEventChecklist(){const input=$('eventChecklistInput');const text=input.value.trim();if(!text||editingChecklist.length>=120)return;editingChecklist.push({id:uid(),text:text.slice(0,160),done:false});input.value='';renderEventChecklist();input.focus();}
  $('addChecklist').addEventListener('click',addEventChecklist);
  $('eventChecklistInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addEventChecklist();}});
- function openEvent(id=null,key=selectedDate){if(id && id.startsWith('shared:')){sharing?.openRemote(id);return;}editingId=id;const e=data.events.find(v=>v.id===id);selectedDate=e?e.start:key;selectedColor=allowedColor(e?.color||COLORS[0]);$('modalTitle').textContent=e?'일정 수정':'새 일정';renderGameSelect(e?e.gameId:'randomdice2');$('gameCreator').hidden=true;$('eventTitle').value=e?.title||'';$('startDate').value=e?.start||key;$('endDate').value=e?.end||key;$('eventDescription').value=e?.description||'';$('eventUrl').value=e?.url||'';$('eventStatus').value=e?eventStatus(e):'todo';$('eventRecurrence').value=e?.recurrence||'none';$('eventRecurrenceUntil').value=e?.recurrenceUntil||'';editingChecklist=cleanChecklist(e?.checklist);$('eventChecklistInput').value='';renderEventChecklist();updateRecurrenceHint();setReminderFields(e?.reminderAt||'');$('deleteEvent').hidden=!e;$('duplicateEvent').hidden=!e;$('shareEvent').hidden=!e||!DESKTOP?.sharingPublish;$('newEventHint').hidden=!!e;
-sharing?.resetDraft();$('eventLinkWrap').hidden=!e?.url;if(e?.url)$('eventOpenLink').href=e.url;renderColors();memoOpened=false;$('memoDrawer').hidden=true;shortcutOpened=false;$('shortcutModal').hidden=true;modalOpened=true;$('eventModal').hidden=false;displayOverlay();renderCalendar();setTimeout(()=>$('eventTitle').focus(),50);}
+ function openEvent(id=null,key=selectedDate){if(id && id.startsWith('shared:')){sharing?.openRemote(id);return;}editingId=id;const e=data.events.find(v=>v.id===id);selectedDate=e?e.start:key;selectedColor=allowedColor(e?.color||COLORS[0]);$('modalTitle').textContent=e?'일정 수정':'새 일정';renderGameSelect(e?e.gameId:'randomdice2');$('gameCreator').hidden=true;editingGameId=null;$('eventTitle').value=e?.title||'';$('startDate').value=e?.start||key;$('endDate').value=e?.end||key;$('eventDescription').value=e?.description||'';$('eventUrl').value=e?.url||'';$('eventStatus').value=e?eventStatus(e):'todo';$('eventRecurrence').value=e?.recurrence||'none';$('eventRecurrenceUntil').value=e?.recurrenceUntil||'';editingChecklist=cleanChecklist(e?.checklist);$('eventChecklistInput').value='';renderEventChecklist();updateRecurrenceHint();setReminderFields(e?.reminderAt||'');$('deleteEvent').hidden=!e;$('duplicateEvent').hidden=!e;$('shareEvent').hidden=!e||!DESKTOP?.sharingPublish;$('newEventHint').hidden=!!e;
+sharing?.resetDraft(!e);$('eventLinkWrap').hidden=!e?.url;if(e?.url)$('eventOpenLink').href=e.url;renderColors();memoOpened=false;$('memoDrawer').hidden=true;shortcutOpened=false;$('shortcutModal').hidden=true;modalOpened=true;$('eventModal').hidden=false;displayOverlay();renderCalendar();setTimeout(()=>$('eventTitle').focus(),50);}
 function updateRecurrenceHint(){const value=$('eventRecurrence').value;$('recurrenceUntilWrap').hidden=value==='none';$('recurrenceHint').textContent=value==='none'?'반복하지 않는 단일 일정입니다.':'주간·월간 반복은 일정 하나로 저장되며 반복 종료일을 설정해야 합니다.';}
 $('eventRecurrence').addEventListener('change',updateRecurrenceHint);
 function closeEvent(){modalOpened=false;$('eventModal').hidden=true;displayOverlay();renderCalendar();}
-$('eventForm').addEventListener('submit',ev=>{ev.preventDefault();const title=$('eventTitle').value.trim(),start=$('startDate').value,end=$('endDate').value,rawLink=$('eventUrl').value.trim(),url=safeLink(rawLink);if(!title){notify('일정 제목을 입력해 주세요.');$('eventTitle').focus();return;}if(!parseKey(start)||!parseKey(end)||start>end){notify('종료일은 시작일과 같거나 뒤여야 해요.');return;}if(rawLink&&!url){notify('링크는 http:// 또는 https:// 주소여야 해요.');$('eventUrl').focus();return;}const record={id:editingId||uid(),title,start,end,color:allowedColor(selectedColor),description:$('eventDescription').value.trim(),url,completed:$('eventStatus').value==='done',status:$('eventStatus').value,gameId:$('gameSelect').value,reminderAt:$('eventReminderOn').checked?computeReminderAt():'',recurrence:$('eventRecurrence').value,recurrenceUntil:$('eventRecurrence').value==='none'?'':$('eventRecurrenceUntil').value,checklist:cleanChecklist(editingChecklist)};if(record.recurrence!=='none'&&(!parseKey(record.recurrenceUntil)||record.recurrenceUntil<record.start)){notify('반복 종료일을 시작일 이후로 지정해 주세요.');return;}if($('eventReminderOn').checked&&(!record.reminderAt||!Number.isFinite(new Date(record.reminderAt).getTime()))){notify('알림 날짜와 시간을 확인해 주세요.');return;}clearDragUndo();if(editingId){const i=data.events.findIndex(e=>e.id===editingId);if(i<0)return;data.events[i]=record;}else data.events.push(record);selectedDate=start;month=new Date(parseKey(start).getFullYear(),parseKey(start).getMonth(),1);save();const invitees=sharing?.draftItems()||[];if(sharing)void sharing.saveAndInvite(record,invitees,!!editingId);closeEvent();checkReminders();notify(editingId?'일정을 수정했어요.':'일정을 추가했어요.');});
+$('eventForm').addEventListener('submit',ev=>{ev.preventDefault();const title=$('eventTitle').value.trim(),start=$('startDate').value,end=$('endDate').value,rawLink=$('eventUrl').value.trim(),url=safeLink(rawLink);if(!title){notify('일정 제목을 입력해 주세요.');$('eventTitle').focus();return;}if(!parseKey(start)||!parseKey(end)||start>end){notify('종료일은 시작일과 같거나 뒤여야 해요.');return;}if(rawLink&&!url){notify('링크는 http:// 또는 https:// 주소여야 해요.');$('eventUrl').focus();return;}const record={id:editingId||uid(),title,start,end,color:allowedColor(selectedColor),description:$('eventDescription').value.trim(),url,completed:$('eventStatus').value==='done',status:$('eventStatus').value,gameId:$('gameSelect').value,reminderAt:$('eventReminderOn').checked?computeReminderAt():'',recurrence:$('eventRecurrence').value,recurrenceUntil:$('eventRecurrence').value==='none'?'':$('eventRecurrenceUntil').value,checklist:cleanChecklist(editingChecklist)};if(record.recurrence!=='none'&&(!parseKey(record.recurrenceUntil)||record.recurrenceUntil<record.start)){notify('반복 종료일을 시작일 이후로 지정해 주세요.');return;}if($('eventReminderOn').checked&&(!record.reminderAt||!Number.isFinite(new Date(record.reminderAt).getTime()))){notify('알림 날짜와 시간을 확인해 주세요.');return;}clearDragUndo();if(editingId){const i=data.events.findIndex(e=>e.id===editingId);if(i<0)return;data.events[i]=record;}else data.events.push(record);selectedDate=start;month=new Date(parseKey(start).getFullYear(),parseKey(start).getMonth(),1);save();const invitees=sharing?.draftItems()||[];if(sharing)void sharing.saveAndInvite({...record,gameName:gameById(record.gameId)?.name||''},invitees,!!editingId);closeEvent();checkReminders();notify(editingId?'일정을 수정했어요.':'일정을 추가했어요.');});
 $('duplicateEvent').addEventListener('click',()=>{if(!editingId)return;const e=data.events.find(x=>x.id===editingId);if(!e)return;const copy={...e,id:uid(),title:e.title+' (복사)',reminderAt:'',checklist:cleanChecklist(e.checklist).map(c=>({...c,id:uid()}))};data.events.push(copy);clearDragUndo();save();closeEvent();renderCalendar();notify('일정을 복제했어요. 알림은 복제되지 않습니다.');});
 $('deleteEvent').addEventListener('click',()=>{if(!editingId||!confirm('이 일정을 삭제할까요?'))return;const removedId=editingId;data.events=data.events.filter(e=>e.id!==editingId);clearDragUndo();save();void sharing?.handleLocalDelete(removedId);closeEvent();notify('일정을 삭제했어요.');});
 $('eventUrl').addEventListener('input',()=>{$('eventLinkWrap').hidden=true;});
@@ -698,8 +720,10 @@ if(DESKTOP?.sharingStatus){
         if(!local)continue;
         for(const [key,value] of Object.entries({title:remote.title,description:remote.description,
           start:remote.start_date,end:remote.end_date,
-          color:remote.event_data?.color||local.color,status:remote.event_data?.status||local.status})){
-          if(local[key]!==value){local[key]=value;changed=true;}
+          color:remote.event_data?.color||local.color,status:remote.event_data?.status||local.status,
+          ...(Array.isArray(remote.event_data?.checklist)?{checklist:cleanChecklist(remote.event_data.checklist)}:{}),
+          ...(typeof remote.event_data?.url==='string'?{url:safeLink(remote.event_data.url)||''}:{})})){
+          if(JSON.stringify(local[key])!==JSON.stringify(value)){local[key]=value;changed=true;}
         }
       }
       if(changed)save();

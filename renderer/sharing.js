@@ -47,11 +47,14 @@
         id:'shared:'+r.id,sharedId:r.id,remoteReadOnly:remoteRole(r)!=='editor',
         title:r.title,description:r.description||'',start:r.start_date,end:r.end_date,
         color:r.event_data?.color||'#5367e8',status:r.event_data?.status||'todo',
-        completed:r.event_data?.status==='done',gameId:'',recurrence:'none',recurrenceUntil:'',checklist:[],url:'',reminderAt:''
+        completed:r.event_data?.status==='done',gameId:'',recurrence:'none',recurrenceUntil:'',
+        checklist:r.event_data?.checklist||[],url:r.event_data?.url||'',reminderAt:''
       })));
     }
     async function refresh(){
       if(!session.signedIn){rows=[];inbox=[];roles=[];contacts=[];onRemoteEvents([]);return;}
+      // An authenticated recipient can explicitly trust a saved sender. This never auto-shares private schedules.
+      await bridge.sharingAutoAcceptInvites?.().catch(()=>{});
       const [events,contactsResult,invitesResult,rolesResult]=await Promise.all([
         bridge.sharingList(),bridge.sharingContactsList(),bridge.sharingInbox(),bridge.sharingMyRoles()
       ]);
@@ -64,15 +67,24 @@
       inbox.forEach(i=>seen.add(i.invite_id));initialInbox=false;
       if(opened)render();
     }
-    function resetDraft(){draft=[];renderEventPicker();}
+    function resetDraft(newEvent=false){draft=newEvent?contacts.filter(c=>c.auto_invite).slice(0,20).map(c=>({email:c.email,nickname:c.nickname,role:'viewer'})):[];renderEventPicker();}
     function draftItems(){const copy=draft.map(x=>({email:x.email,role:x.role}));draft=[];return copy;}
     function renderEventPicker(){
       const host=$('eventCollabPicker');if(!host)return;
       host.replaceChildren();
       line(host,'h4','동료 초대 (선택)','share-heading');
       if(!session.signedIn){hint(host,'먼저 상단의 일정 공유에서 이메일 로그인을 해주세요.');return;}
-      hint(host,'연락처에 등록한 동료를 선택하면 일정 저장과 동시에 초대가 발송돼요.');
+      hint(host,'선택한 동료에게만 이 일정을 공유합니다. 기본 초대 동료는 자동으로 선택되며 저장 전에 제거할 수 있어요.');
       const search=field(host,'닉네임 또는 이메일 검색');search.setAttribute('aria-label','초대할 동료 검색');
+      const groupHost=line(host,'div','','share-picker-results');
+      const groups=[...new Set(contacts.map(c=>c.group_name||'').filter(Boolean))].sort();
+      for(const group of groups)btn(groupHost,'+ 그룹: '+group,()=>{
+        for(const c of contacts.filter(c=>c.group_name===group)){
+          if(draft.length>=20)break;
+          if(!draft.some(d=>d.email===c.email))draft.push({email:c.email,nickname:c.nickname,role:'viewer'});
+        }
+        draw();
+      },'btn sm share-contact-add');
       const matches=line(host,'div','','share-picker-results');
       const picks=line(host,'div','','share-picks');
       function draw(){
@@ -99,7 +111,7 @@
         if(event.recurrence && event.recurrence!=='none'){
           notify('반복 일정은 공유되지 않아요. 일반 일정으로 변경해 주세요.');return;
         }
-        if(!confirm(`${recipients.length}명에게 이 일정의 제목·날짜·상세 메모를 공유하고 초대할까요?`))return;
+        if(!confirm(`${recipients.length}명에게 이 일정의 제목·날짜·상세 메모·체크리스트·관련 링크를 공유하고 초대할까요?`))return;
         try{await bridge.sharingPublish(event);}
         catch(e){notify('로컬 일정은 저장됐지만 공유 일정을 만들지 못했어요: '+e.message);return;}
       }
@@ -141,16 +153,41 @@
       const row=line(section,'div','','share-contact-entry');
       const name=field(row,'동료 닉네임');name.maxLength=60;
       const email=field(row,'동료 이메일','','email');
+      const group=field(section,'소속 그룹 (선택) — 예: UA팀');group.maxLength=60;
       btn(row,'+ 동료 등록',async()=>{
-        await bridge.sharingContactAdd(name.value,email.value);await refresh();notify('동료를 등록했어요.');
+        await bridge.sharingContactAdd(name.value,email.value,group.value);await refresh();notify('동료를 등록했어요.');
       },'btn primary sm');
+      const groups=[...new Set(contacts.map(c=>c.group_name||'').filter(Boolean))].sort();
+      if(groups.length){
+        line(section,'h4','동료 그룹 관리','share-heading');
+        for(const groupName of groups){
+          const gr=line(section,'div','','share-list-item');
+          const count=contacts.filter(c=>c.group_name===groupName).length;
+          line(gr,'span',`${groupName} · ${count}명`);
+          btn(gr,'이름 변경',async()=>{const next=prompt('그룹 새 이름',groupName);if(next===null)return;await bridge.sharingContactGroupRename(groupName,next);await refresh();});
+          btn(gr,'그룹 해제',async()=>{if(!confirm(groupName+' 그룹을 해제할까요? 연락처는 삭제되지 않아요.'))return;await bridge.sharingContactGroupClear(groupName);await refresh();},'btn sm');
+        }
+      }
       for(const c of contacts){
         const one=line(section,'div','','share-list-item');const info=line(one,'div','','share-list-copy');
-        line(info,'strong',c.nickname);line(info,'small',c.email);
+        line(info,'strong',c.nickname);line(info,'small',(c.group_name?`[${c.group_name}] `:'')+c.email);
+        const settings=line(info,'div','','share-contact-settings');
+        const autoInvite=line(settings,'label','','share-setting');const autoInviteCheck=line(autoInvite,'input');autoInviteCheck.type='checkbox';autoInviteCheck.checked=!!c.auto_invite;line(autoInvite,'span','새 일정에 기본 초대');
+        const autoAccept=line(settings,'label','','share-setting');const autoAcceptCheck=line(autoAccept,'input');autoAcceptCheck.type='checkbox';autoAcceptCheck.checked=!!c.auto_accept;line(autoAccept,'span','이 동료의 새 초대 자동 수락');
+        async function updateSetting(){
+          try{
+            if(autoAcceptCheck.checked&&!c.auto_accept&&!confirm(`${c.nickname} (${c.email}) 계정에서 오는 새 초대를 앞으로 자동 수락할까요?
+이 동료가 공유한 일정만 자동으로 표시됩니다.`)){autoAcceptCheck.checked=false;return;}
+            await bridge.sharingContactSettings(c.id,{auto_invite:autoInviteCheck.checked,auto_accept:autoAcceptCheck.checked});
+            await refresh();notify('동료별 자동 공유 설정을 저장했어요.');
+          }catch(e){notify(e.message||'설정 저장 실패');await refresh();}
+        }
+        autoInviteCheck.addEventListener('change',updateSetting);autoAcceptCheck.addEventListener('change',updateSetting);
         btn(one,'수정',async()=>{
           const newName=prompt('동료 닉네임',c.nickname);if(newName===null)return;
           const newMail=prompt('동료 이메일',c.email);if(newMail===null)return;
-          await bridge.sharingContactUpdate(c.id,newName,newMail);await refresh();
+          const newGroup=prompt('그룹 이름 (비워두면 그룹 없음)',c.group_name||'');if(newGroup===null)return;
+          await bridge.sharingContactUpdate(c.id,newName,newMail,newGroup);await refresh();
         });
         btn(one,'삭제',async()=>{if(!confirm(c.nickname+' 연락처를 삭제할까요?'))return;await bridge.sharingContactRemove(c.id);await refresh();},'btn sm danger');
       }
@@ -170,12 +207,45 @@
       const section=line(parent,'section','','share-section');
       line(section,'h3',r.title,'share-heading');
       hint(section,`${r.start_date} ~ ${r.end_date} · ${isMine(r)?'작성자':editable?'편집 가능':'읽기 전용'} · 수정 버전 ${r.revision||1}`);
-      if(!editable){if(r.description)line(section,'p',r.description,'share-description');}
+      if(r.event_data?.gameName)line(section,'p','게임 타이틀: '+r.event_data.gameName,'share-hint');
+      if(!editable){
+        line(section,'h4','작업 상태','share-heading');
+        line(section,'p',({'todo':'예정','doing':'진행','done':'완료'})[r.event_data?.status]||'예정','share-description');
+        line(section,'h4','자세한 메모','share-heading');
+        line(section,'p',r.description||'등록된 메모가 없어요.','share-description');
+        if(r.event_data?.url && /^https?:\/\//i.test(r.event_data.url)){
+          line(section,'h4','관련 링크','share-heading');
+          const link=line(section,'a',r.event_data.url,'share-description');link.href=r.event_data.url;link.target='_blank';link.rel='noopener noreferrer';
+        }
+        const items=Array.isArray(r.event_data?.checklist)?r.event_data.checklist:[];
+        line(section,'h4',`작업 체크리스트 (${items.filter(i=>i.done).length}/${items.length} 완료)`,'share-heading');
+        if(!items.length)hint(section,'등록된 체크리스트가 없어요.');
+        for(const item of items){const el=line(section,'p',(item.done?'☑ ':'☐ ')+item.text,'share-description');if(item.done)el.style.opacity='.65';}
+      }
+
       else{
         const title=field(section,'일정 제목',r.title);title.maxLength=200;
         const start=field(section,'시작일',r.start_date,'date');
         const end=field(section,'종료일',r.end_date,'date');
-        const description=line(section,'textarea','','share-input');description.rows=3;description.value=r.description||'';description.maxLength=4000;
+        line(section,'label','자세한 메모','share-heading');
+        const description=line(section,'textarea','','share-input');description.rows=5;description.value=r.description||'';description.maxLength=4000;
+        line(section,'label','관련 링크 (선택)','share-heading');
+        const link=field(section,'https://...',r.event_data?.url||'');link.maxLength=1500;
+        line(section,'h4','작업 체크리스트','share-heading');
+        const checklistHost=line(section,'div','','share-picks');
+        let checklist=(Array.isArray(r.event_data?.checklist)?r.event_data.checklist:[]).map(x=>({text:x.text,done:!!x.done}));
+        function drawChecklist(){
+          checklistHost.replaceChildren();
+          checklist.forEach((item,i)=>{
+            const row=line(checklistHost,'div','','share-pick-row');
+            const cb=line(row,'input');cb.type='checkbox';cb.checked=item.done;cb.addEventListener('change',()=>{item.done=cb.checked;});
+            const name=field(row,'체크 항목',item.text);name.maxLength=160;name.addEventListener('input',()=>{item.text=name.value.slice(0,160);});
+            btn(row,'삭제',()=>{checklist.splice(i,1);drawChecklist();},'btn sm');
+          });
+        }
+        drawChecklist();
+        const addCheck=field(section,'새 체크 항목');
+        btn(section,'체크 항목 추가',()=>{if(addCheck.value.trim()&&checklist.length<40){checklist.push({text:addCheck.value.trim().slice(0,160),done:false});addCheck.value='';drawChecklist();}},'btn sm');
         const status=line(section,'select','','share-input');
         for(const [v,label] of [['todo','예정'],['doing','진행'],['done','완료']]){
           const opt=line(status,'option',label);opt.value=v;
@@ -183,9 +253,12 @@
         status.value=r.event_data?.status||'todo';
         btn(section,'공유 일정 변경 저장',async()=>{
           if(!title.value.trim()||!start.value||!end.value||end.value<start.value){notify('제목과 날짜를 확인해 주세요.');return;}
+          const safeUrl=link.value.trim();
+          if(safeUrl&&!/^https?:\/\/[^\s]+$/i.test(safeUrl)){notify('관련 링크는 http/https만 지원해요.');return;}
           await bridge.sharingEditShared(r.id,Number(r.revision),{
             id:'remote-edit',title:title.value,start:start.value,end:end.value,
-            description:description.value,status:status.value,color:r.event_data?.color||'#5367e8'
+            description:description.value,status:status.value,color:r.event_data?.color||'#5367e8',
+            url:safeUrl,checklist,gameName:r.event_data?.gameName||''
           });
           await refresh();await detailLoad();notify('수정된 일정이 동료에게 동기화됩니다.');
         },'btn primary');
@@ -292,7 +365,7 @@
         if(selected){
           line(content,'h3',selected.title,'share-heading');
           btn(content,'이 일정 공유 시작',async()=>{
-            if(!confirm('제목, 날짜, 상세 메모를 공유 서버에 저장할까요?'))return;
+            if(!confirm('제목, 날짜, 상세 메모, 체크리스트, 관련 링크를 공유 서버에 저장할까요?'))return;
             await bridge.sharingPublish(selected);await refresh();await detailLoad();notify('공유 일정이 준비됐어요.');
           },'btn primary');
         }
