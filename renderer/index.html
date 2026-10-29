@@ -564,6 +564,38 @@ html[data-theme=dark] .widget-todo-edit,html[data-theme=dark] .widget-todo-save,
 .share-edit-label{display:grid;gap:6px;font-size:12px;font-weight:650;color:var(--text,#263248)}
 .share-inline-editor .share-input{margin:0}
 .share-fold .btn:disabled{opacity:.36;cursor:not-allowed;filter:grayscale(.35);box-shadow:none}
+/* v1.9.7: selected group = one row, sticky save controls and compact management lists */
+#eventModal:not([hidden]){display:flex;flex-direction:column;overflow:hidden;height:min(840px,calc(100vh - 34px))}
+#eventModal #eventForm{display:flex;flex-direction:column;min-height:0;flex:1}
+#eventModal .modal-head,#eventModal .modal-foot{flex:none}
+#eventModal .modal-body{min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain}
+#eventModal .modal-foot{background:var(--surface,#fff);z-index:2;box-shadow:0 -5px 15px rgba(10,20,40,.035)}
+#eventModal[hidden],.sharing-overlay[hidden],.share-inline-editor[hidden]{display:none!important}
+/* Same background, border and spacing for the two collapsible event sections */
+.event-checklist-section.event-fold,.event-memo-fold.event-fold{background:var(--surface,#fff);border:1px solid var(--line,#e0e6f1);padding:0!important;margin:0 0 16px;border-radius:12px}
+html[data-theme=dark] .event-checklist-section.event-fold,html[data-theme=dark] .event-memo-fold.event-fold{background:#242c3b!important;border-color:#3b465b!important;color:#e0e7f6!important}
+.sharing-header{align-items:flex-start}
+#sharingClose{align-self:flex-start;flex:0 0 36px;width:36px;min-width:36px;height:36px;max-height:36px;min-height:36px;display:grid;place-items:center;padding:0;line-height:1;border-radius:10px}
+.share-group-picker{display:flex;align-items:center;gap:8px;min-width:0}
+.share-group-picker[hidden]{display:none!important}
+.share-group-picker .share-group-select{flex:1;min-width:0}
+.share-group-picker .btn{flex:none;width:auto;white-space:nowrap}
+.share-picker-results:empty,.share-picks:empty{display:none}
+.share-pick-summary{font-size:11px;color:var(--muted,#8290aa);padding:3px 1px}
+.share-pick-row{flex-wrap:nowrap;min-width:0;padding:8px 10px}
+.share-pick-info{display:grid;gap:4px;min-width:0;flex:1}
+.share-pick-info strong{font-size:12px;overflow-wrap:anywhere}
+.share-pick-info small{font-size:11px;color:var(--muted,#8290aa);overflow-wrap:anywhere}
+.share-pick-row .share-role{flex:none;max-width:120px;min-width:96px}
+.share-pick-row .share-pick-remove{flex:0 0 30px;width:30px;height:30px;min-width:30px;padding:0;display:grid;place-items:center}
+.share-contact-manager,.share-contact-group{min-width:0;border:1px solid var(--line,#dbe1ec);border-radius:11px;overflow:hidden}
+.share-contact-manager>.share-fold-summary,.share-contact-group>.share-fold-summary{list-style:none;cursor:pointer;padding:11px 12px;font-weight:750;font-size:12px}
+.share-contact-manager-body,.share-contact-group-body{display:grid;gap:9px;padding:0 11px 11px}
+.share-contact-manager-body{padding-top:5px}
+.share-contact-group .share-list-item{flex-wrap:wrap}
+.share-contact-group .share-list-item .share-list-copy{flex:1;min-width:160px}
+@media(max-width:430px){.share-pick-row{flex-wrap:wrap}.share-pick-row .share-pick-info{flex-basis:100%}.share-group-picker{flex-wrap:wrap}.share-group-picker .share-group-select{flex-basis:100%}}
+
 /* v1.9.1 invitation and team editing */
 .share-inline-panel{display:grid;gap:7px;border:1px solid var(--line,#e6e9f0);padding:12px;border-radius:12px;background:var(--surface,#fff)}
 .share-inline-panel h4{margin:0;font-size:14px}

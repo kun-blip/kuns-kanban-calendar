@@ -44,8 +44,8 @@ function sharingHarness(){
  return {ui,host,contacts,changes,notices};
 }
 
-test('v1.9.6 version and lockfile root match, dependency resolution untouched',()=>{
- assert.equal(pkg.version,'1.9.6');assert.equal(lock.version,'1.9.6');assert.equal(lock.packages[''].version,'1.9.6');
+test('Current release version and lockfile root match, dependency resolution untouched',()=>{
+ assert.equal(pkg.version,'1.9.7');assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);
  assert.equal(lock.packages['node_modules/webcrypto-core']?.version,'1.9.2');
 });
 test('contact editing uses inline form, no Electron-unsupported prompt calls',async()=>{

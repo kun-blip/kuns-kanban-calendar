@@ -9,6 +9,8 @@
     let draft=[], details={members:[],invites:[],history:[]}, seen=new Set(),initialInbox=true;
     // Keep each section's expanded state while inbox/contact lists refresh.
     const foldOpen={legacy:false,shared:false,contacts:false};
+    const colleagueGroupOpen=new Map();
+    let colleagueGroupManagerOpen=false;
     const uuid=v=>typeof v==='string' && /^[0-9a-f-]{36}$/i.test(v);
     function line(parent,tag,text,cls){const el=document.createElement(tag);el.textContent=text??'';if(cls)el.className=cls;parent.append(el);return el;}
     function hint(parent,text){line(parent,'p',text,'share-hint');}
@@ -88,36 +90,89 @@
       inbox.forEach(i=>seen.add(i.invite_id));initialInbox=false;
       if(opened)render();
     }
-    function resetDraft(newEvent=false){draft=newEvent?contacts.filter(c=>c.auto_invite).slice(0,20).map(c=>({email:c.email,nickname:c.nickname,role:'viewer'})):[];renderEventPicker();}
-    function draftItems(){const copy=draft.map(x=>({email:x.email,role:x.role}));draft=[];return copy;}
+    // Groups stay as one selection in the UI; resolve their current members only on save.
+    // A selected group's permission takes precedence over any automatic individual selection.
+    function resolvedDraftRecipients(selections=draft){
+      const recipients=new Map();
+      for(const group of selections.filter(item=>item.groupName)){
+        for(const contact of contacts.filter(c=>c.group_name===group.groupName)){
+          recipients.set(contact.email.toLowerCase(),{email:contact.email.toLowerCase(),role:group.role});
+        }
+      }
+      for(const person of selections.filter(item=>!item.groupName)){
+        const email=person.email.toLowerCase();
+        if(!recipients.has(email))recipients.set(email,{email,role:person.role});
+      }
+      return [...recipients.values()];
+    }
+    function resetDraft(newEvent=false){
+      draft=newEvent?contacts.filter(c=>c.auto_invite).slice(0,20).map(c=>({email:c.email,nickname:c.nickname,role:'viewer'})):[];
+      renderEventPicker();
+    }
+    function draftItems(){
+      const copy=resolvedDraftRecipients();
+      if(copy.length>20){notify('초대는 일정당 최대 20명까지 가능해요. 그룹 또는 동료를 줄인 후 다시 저장해 주세요.');return [];}
+      draft=[];return copy;
+    }
     function renderEventPicker(){
       const host=$('eventCollabPicker');if(!host)return;
       host.replaceChildren();
       line(host,'h4','동료 초대 (선택)','share-heading');
       if(!session.signedIn){hint(host,'먼저 상단의 일정 공유에서 이메일 로그인을 해주세요.');return;}
-      hint(host,'선택한 동료에게만 이 일정을 공유합니다. 기본 초대 동료는 자동으로 선택되며 저장 전에 제거할 수 있어요.');
+      hint(host,'그룹은 한 번에 선택하고 보기/편집 권한도 그룹 전체에 적용돼요.');
       const search=field(host,'닉네임 또는 이메일 검색');search.setAttribute('aria-label','초대할 동료 검색');
-      const groupHost=line(host,'div','','share-picker-results');
       const groups=[...new Set(contacts.map(c=>c.group_name||'').filter(Boolean))].sort();
-      for(const group of groups)btn(groupHost,'+ 그룹: '+group,()=>{
-        for(const c of contacts.filter(c=>c.group_name===group)){
-          if(draft.length>=20)break;
-          if(!draft.some(d=>d.email===c.email))draft.push({email:c.email,nickname:c.nickname,role:'viewer'});
-        }
-        draw();
+      const groupHost=line(host,'div','','share-group-picker');
+      const choices=line(groupHost,'select','','share-input share-group-select');
+      choices.setAttribute('aria-label','초대할 동료 그룹');
+      const placeholder=line(choices,'option','그룹 선택');placeholder.value='';
+      for(const name of groups){const opt=line(choices,'option',`${name} (${contacts.filter(c=>c.group_name===name).length}명)`);opt.value=name;}
+      const addGroup=btn(groupHost,'+ 그룹 추가',()=>{
+        const name=choices.value;if(!name)return;
+        if(draft.some(item=>item.groupName===name))return;
+        const members=contacts.filter(c=>c.group_name===name);
+        const memberEmails=new Set(members.map(c=>c.email.toLowerCase()));
+        const next=draft.filter(item=>item.groupName||!memberEmails.has((item.email||'').toLowerCase()));
+        next.push({groupName:name,role:'viewer'});
+        if(resolvedDraftRecipients(next).length>20){notify('한 일정에는 최대 20명까지 초대할 수 있어요.');return;}
+        draft=next;choices.value='';draw();
       },'btn sm share-contact-add');
+      addGroup.disabled=!groups.length;
+      if(!groups.length)groupHost.hidden=true;
       const matches=line(host,'div','','share-picker-results');
       const picks=line(host,'div','','share-picks');
       function draw(){
         matches.replaceChildren();picks.replaceChildren();
         const q=search.value.trim().toLowerCase();
-        for(const p of contacts.filter(x=>!draft.some(d=>d.email===x.email) && (x.nickname.toLowerCase().includes(q)||x.email.includes(q))).slice(0,7)){
-          btn(matches,'+ '+p.nickname+' ('+p.email+')',()=>{draft.push({email:p.email,nickname:p.nickname,role:'viewer'});draw();},'btn sm share-contact-add');
+        const covered=new Set(draft.flatMap(d=>d.groupName?contacts.filter(c=>c.group_name===d.groupName).map(c=>c.email.toLowerCase()):[(d.email||'').toLowerCase()]));
+        // Do not expand all coworkers on opening the editor. Search is opt-in.
+        if(q)for(const person of contacts.filter(c=>!covered.has(c.email.toLowerCase())&&(
+          c.nickname.toLowerCase().includes(q)||c.email.toLowerCase().includes(q)
+        )).slice(0,5)){
+          btn(matches,'+ '+person.nickname+' ('+person.email+')',()=>{
+            if(resolvedDraftRecipients([...draft,{email:person.email,nickname:person.nickname,role:'viewer'}]).length>20){notify('한 일정에는 최대 20명까지 초대할 수 있어요.');return;}
+            draft.push({email:person.email,nickname:person.nickname,role:'viewer'});search.value='';draw();
+          },'btn sm share-contact-add');
         }
-        for(const p of draft){
-          const row=line(picks,'div','','share-pick-row');line(row,'span',p.nickname);
-          roleMenu(row,p.role,v=>{p.role=v;});
-          btn(row,'×',()=>{draft=draft.filter(x=>x.email!==p.email);draw();},'btn sm');
+        if(draft.length){
+          const summary=line(picks,'div',`선택됨: ${draft.length}개 항목 · ${resolvedDraftRecipients().length}명`,'share-pick-summary');
+          summary.setAttribute('aria-live','polite');
+        }
+        for(const selected of draft){
+          const row=line(picks,'div','','share-pick-row');
+          const info=line(row,'div','','share-pick-info');
+          if(selected.groupName){
+            line(info,'strong','그룹: '+selected.groupName);
+            line(info,'small',`${contacts.filter(c=>c.group_name===selected.groupName).length}명 전체 초대`);
+          }else{
+            line(info,'strong',selected.nickname);
+            line(info,'small',selected.email);
+          }
+          roleMenu(row,selected.role,value=>{selected.role=value;});
+          const remove=btn(row,'×',()=>{
+            draft=draft.filter(item=>item!==selected);draw();
+          },'btn sm share-pick-remove');
+          remove.setAttribute('aria-label',(selected.groupName||selected.nickname)+' 초대 제거');
         }
       }
       search.addEventListener('input',draw);draw();
@@ -179,27 +234,46 @@
         await bridge.sharingContactAdd(name.value,email.value,group.value);await refresh();notify('동료를 등록했어요.');
       },'btn primary sm');
       const groups=[...new Set(contacts.map(c=>c.group_name||'').filter(Boolean))].sort();
-      if(groups.length){
-        line(section,'h4','동료 그룹 관리','share-heading');
-        for(const groupName of groups){
-          const gr=line(section,'div','','share-list-item');
-          const count=contacts.filter(c=>c.group_name===groupName).length;
-          line(gr,'span',`${groupName} · ${count}명`);
-          btn(gr,'이름 변경',()=>{editor.hidden=!editor.hidden;if(!editor.hidden)newGroup.focus();});
-          btn(gr,'그룹 해제',async()=>{if(!confirm(groupName+' 그룹을 해제할까요? 연락처는 삭제되지 않아요.'))return;await bridge.sharingContactGroupClear(groupName);await refresh();},'btn sm');
-          const editor=line(section,'div','','share-inline-editor');editor.hidden=true;
-          const newGroup=editLabel(editor,'새 그룹 이름','예: 디자인팀',groupName);newGroup.maxLength=60;
-          const actions=line(editor,'div','','share-options');
-          btn(actions,'저장',async()=>{
-            const value=newGroup.value.trim();if(!value){notify('그룹 이름을 입력해 주세요.');return;}
-            await bridge.sharingContactGroupRename(groupName,value);await refresh();notify('그룹 이름을 변경했어요.');
-          },'btn sm primary');
-          btn(actions,'취소',()=>{editor.hidden=true;newGroup.value=groupName;},'btn sm');
-        }
+      const manager=line(section,'details','','share-contact-manager');
+      manager.open=colleagueGroupManagerOpen;
+      line(manager,'summary',`동료 그룹 관리 (${groups.length}개 그룹)`,'share-fold-summary');
+      manager.addEventListener('toggle',()=>{colleagueGroupManagerOpen=manager.open;});
+      const groupBody=line(manager,'div','','share-contact-manager-body');
+      // Group membership is a collapsible list, not an always-expanded duplicate directory.
+      for(const groupName of groups){
+        const members=contacts.filter(c=>c.group_name===groupName);
+        const groupFold=line(groupBody,'details','','share-contact-group');
+        groupFold.open=!!colleagueGroupOpen.get(groupName);
+        line(groupFold,'summary',`${groupName} · ${members.length}명`,'share-fold-summary');
+        groupFold.addEventListener('toggle',()=>{colleagueGroupOpen.set(groupName,groupFold.open);});
+        const inner=line(groupFold,'div','','share-contact-group-body');
+        const actions=line(inner,'div','','share-options');
+        btn(actions,'이름 변경',()=>{editor.hidden=!editor.hidden;if(!editor.hidden)newGroup.focus();});
+        btn(actions,'그룹 해제',async()=>{if(!confirm(groupName+' 그룹을 해제할까요? 연락처는 삭제되지 않아요.'))return;await bridge.sharingContactGroupClear(groupName);await refresh();},'btn sm');
+        const editor=line(inner,'div','','share-inline-editor');editor.hidden=true;
+        const newGroup=editLabel(editor,'새 그룹 이름','예: 디자인팀',groupName);newGroup.maxLength=60;
+        const editActions=line(editor,'div','','share-options');
+        btn(editActions,'저장',async()=>{
+          const value=newGroup.value.trim();if(!value){notify('그룹 이름을 입력해 주세요.');return;}
+          await bridge.sharingContactGroupRename(groupName,value);
+          colleagueGroupOpen.set(value,true);colleagueGroupOpen.delete(groupName);
+          await refresh();notify('그룹 이름을 변경했어요.');
+        },'btn sm primary');
+        btn(editActions,'취소',()=>{editor.hidden=true;newGroup.value=groupName;},'btn sm');
+        for(const c of members)renderContact(c,inner,groups);
       }
-      for(const c of contacts){
-        const one=line(section,'div','','share-list-item');const info=line(one,'div','','share-list-copy');
-        line(info,'strong',c.nickname);line(info,'small',(c.group_name?`[${c.group_name}] `:'')+c.email);
+      const ungrouped=contacts.filter(c=>!c.group_name);
+      if(ungrouped.length){
+        const loose=line(section,'details','','share-contact-group');
+        loose.open=!!colleagueGroupOpen.get('');
+        line(loose,'summary',`그룹 없음 · ${ungrouped.length}명`,'share-fold-summary');
+        loose.addEventListener('toggle',()=>{colleagueGroupOpen.set('',loose.open);});
+        const inner=line(loose,'div','','share-contact-group-body');
+        for(const c of ungrouped)renderContact(c,inner,groups);
+      }
+      function renderContact(c,container,groupNames){
+        const one=line(container,'div','','share-list-item');const info=line(one,'div','','share-list-copy');
+        line(info,'strong',c.nickname);line(info,'small',c.email);
         const settings=line(info,'div','','share-contact-settings');
         const autoInvite=line(settings,'label','','share-setting');const autoInviteCheck=line(autoInvite,'input');autoInviteCheck.type='checkbox';autoInviteCheck.checked=!!c.auto_invite;line(autoInvite,'span','새 일정에 기본 초대');
         const autoAccept=line(settings,'label','','share-setting');const autoAcceptCheck=line(autoAccept,'input');autoAcceptCheck.type='checkbox';autoAcceptCheck.checked=!!c.auto_accept;line(autoAccept,'span','이 동료의 새 초대 자동 수락');
@@ -215,21 +289,22 @@
         btn(one,'수정',()=>{editor.hidden=!editor.hidden;if(!editor.hidden)editName.focus();});
         btn(one,'삭제',async()=>{if(!confirm(c.nickname+' 연락처를 삭제할까요?'))return;await bridge.sharingContactRemove(c.id);await refresh();},'btn sm danger');
         // Electron does not support window.prompt(); edit directly in the app.
-        const editor=line(section,'div','','share-inline-editor');editor.hidden=true;
+        const editor=line(container,'div','','share-inline-editor');editor.hidden=true;
         const editName=editLabel(editor,'동료 닉네임','동료 닉네임',c.nickname);editName.maxLength=60;
         const editMail=editLabel(editor,'동료 이메일','name@example.com',c.email,'email');editMail.maxLength=254;
         const editGroup=editLabel(editor,'소속 그룹 (선택)','기존 그룹 선택 또는 새 그룹 입력',c.group_name||'');editGroup.maxLength=60;
-        groupSuggestions(editGroup,groups,c.id);
-        const actions=line(editor,'div','','share-options');
-        btn(actions,'저장',async()=>{
+        groupSuggestions(editGroup,groupNames,c.id);
+        const editorActions=line(editor,'div','','share-options');
+        btn(editorActions,'저장',async()=>{
           const nickname=editName.value.trim(),email=editMail.value.trim().toLowerCase(),group=editGroup.value.trim();
           if(!nickname || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
             notify('닉네임과 올바른 이메일을 입력해 주세요.');return;
           }
           await bridge.sharingContactUpdate(c.id,nickname,email,group);
+          colleagueGroupOpen.set(group,true);
           await refresh();notify('동료 정보를 수정했어요.');
         },'btn sm primary');
-        btn(actions,'취소',()=>{
+        btn(editorActions,'취소',()=>{
           editName.value=c.nickname;editMail.value=c.email;editGroup.value=c.group_name||'';editor.hidden=true;
         },'btn sm');
       }
@@ -332,27 +407,58 @@
       }
       line(section,'h3','등록된 동료에게 초대 보내기','share-heading');
       hint(section,'동료별 보기/편집 권한을 설정한 후 한 번에 초대해요. 로그인한 상대방의 받은 초대함에 나타납니다.');
-      const picks=[];const search=field(section,'동료 닉네임 검색');
+      const picks=[];
+      const search=field(section,'동료 닉네임 또는 이메일 검색');
+      const groupChoices=line(section,'div','','share-group-picker');
+      const groupSelect=line(groupChoices,'select','','share-input share-group-select');
+      groupSelect.setAttribute('aria-label','초대할 동료 그룹');
+      const empty=line(groupSelect,'option','그룹 선택');empty.value='';
+      for(const name of [...new Set(contacts.map(c=>c.group_name).filter(Boolean))].sort()){
+        const option=line(groupSelect,'option',`${name} (${contacts.filter(c=>c.group_name===name).length}명)`);option.value=name;
+      }
+      btn(groupChoices,'+ 그룹 추가',()=>{
+        const groupName=groupSelect.value;
+        if(!groupName||picks.some(p=>p.groupName===groupName))return;
+        const emails=new Set(contacts.filter(c=>c.group_name===groupName).map(c=>c.email.toLowerCase()));
+        const next=picks.filter(p=>p.groupName||!emails.has((p.email||'').toLowerCase()));
+        next.push({groupName,role:'viewer'});
+        if(resolvedDraftRecipients(next).length>20){notify('한 일정에는 최대 20명까지 초대할 수 있어요.');return;}
+        picks.splice(0,picks.length,...next);groupSelect.value='';draw();
+      },'btn sm share-contact-add');
+      if(!contacts.some(c=>c.group_name))groupChoices.hidden=true;
       const results=line(section,'div','','share-picker-results');
       const picked=line(section,'div','','share-picks');
       function draw(){
         results.replaceChildren();picked.replaceChildren();
-        for(const c of contacts.filter(x=>!picks.some(p=>p.email===x.email)&&(
-          c.nickname.toLowerCase().includes(search.value.toLowerCase())||c.email.includes(search.value.toLowerCase())
-        )).slice(0,6)){
-          btn(results,'+ '+c.nickname+' ('+c.email+')',()=>{picks.push({email:c.email,nickname:c.nickname,role:'viewer'});search.value='';draw();},'btn sm share-contact-add');
+        const q=search.value.trim().toLowerCase();
+        const selectedEmails=new Set(resolvedDraftRecipients(picks).map(p=>p.email));
+        if(q)for(const c of contacts.filter(x=>!selectedEmails.has(x.email.toLowerCase())&&(
+          x.nickname.toLowerCase().includes(q)||x.email.toLowerCase().includes(q)
+        )).slice(0,5)){
+          btn(results,'+ '+c.nickname+' ('+c.email+')',()=>{
+            if(resolvedDraftRecipients([...picks,{email:c.email,nickname:c.nickname,role:'viewer'}]).length>20){notify('한 일정에는 최대 20명까지 초대할 수 있어요.');return;}
+            picks.push({email:c.email,nickname:c.nickname,role:'viewer'});search.value='';draw();
+          },'btn sm share-contact-add');
         }
+        if(picks.length)line(picked,'div',`선택됨: ${picks.length}개 항목 · ${resolvedDraftRecipients(picks).length}명`,'share-pick-summary');
         for(const p of picks){
-          const row=line(picked,'div','','share-pick-row');line(row,'span',p.nickname);
+          const row=line(picked,'div','','share-pick-row');
+          const info=line(row,'div','','share-pick-info');
+          line(info,'strong',p.groupName?'그룹: '+p.groupName:p.nickname);
+          if(p.groupName)line(info,'small',`${contacts.filter(c=>c.group_name===p.groupName).length}명 전체 초대`);
+          else line(info,'small',p.email);
           roleMenu(row,p.role,v=>{p.role=v;});
-          btn(row,'×',()=>{picks.splice(picks.indexOf(p),1);draw();});
+          const remove=btn(row,'×',()=>{picks.splice(picks.indexOf(p),1);draw();},'btn sm share-pick-remove');
+          remove.setAttribute('aria-label',(p.groupName||p.nickname)+' 초대 제거');
         }
       }
       search.addEventListener('input',draw);draw();
-      btn(section,'선택한 동료에게 초대 발송',async()=>{
-        if(!picks.length){notify('동료를 선택해 주세요.');return;}
-        await bridge.sharingInviteContacts(r.id,picks);
-        await refresh();await detailLoad();notify(picks.length+'명에게 일정 초대를 전송했어요.');
+      btn(section,'선택한 그룹/동료 초대 확인',async()=>{
+        const recipients=resolvedDraftRecipients(picks);
+        if(!recipients.length){notify('동료 또는 그룹을 선택해 주세요.');return;}
+        if(recipients.length>20){notify('한 일정에는 최대 20명까지 초대할 수 있어요.');return;}
+        await bridge.sharingInviteContacts(r.id,recipients);
+        await refresh();await detailLoad();notify(recipients.length+'명에게 일정 초대를 전송했어요.');
       },'btn primary');
       if(details.invites?.length){
         line(section,'h3','보낸 초대','share-heading');
