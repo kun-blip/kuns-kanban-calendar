@@ -41,12 +41,14 @@
       launch.hidden = false;
       const available = ['available', 'downloaded'].includes(state.phase);
       launch.classList.toggle('has-update', available);
+      launch.classList.toggle('needs-attention', available);
+      launch.title = available ? `새 버전 v${state.newVersion || '?'} 확인` : 'GitHub Releases 업데이트 확인';
       el('updateLaunchText').textContent = available ? '새 버전' : '업데이트';
       cur.textContent = `현재 v${state.version || '-'}${state.newVersion ? ' · 새 버전 v' + state.newVersion : ''}`;
       msg.textContent = state.message || 'GitHub Releases 상태를 확인하세요.';
       progress.hidden = state.phase !== 'downloading';
       bar.style.width = Math.max(0, Math.min(100, Number(state.percent) || 0)) + '%';
-      action.textContent = bridge.platform==='darwin'&&state.phase==='available'?'Mac용 DMG 받기':(names[state.phase] || '업데이트 확인');
+      action.textContent = bridge.platform==='darwin'&&state.phase==='available'?'Mac 다운로드 페이지 열기':(names[state.phase] || '업데이트 확인');
       action.disabled = ['disabled', 'checking', 'downloading', 'installing'].includes(state.phase);
     }
     function isBlocked() {

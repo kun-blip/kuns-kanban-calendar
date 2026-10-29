@@ -68,7 +68,7 @@ test('upgrade shows notes once; initial install, same version, downgrade, develo
   assert.equal(shouldShowReleaseNotes({...base,hasNotes:false}),false,'unwritten notes');
 });
 test('versioned changelog is actual, local and complete; old release is still viewable',()=>{
-  assert.ok(['1.9.8','1.9.9'].includes(pkg.version));assert.equal(lock.version,pkg.version);
+  assert.ok(['1.9.8','1.9.9','1.9.10'].includes(pkg.version));assert.equal(lock.version,pkg.version);
   assert.equal(lock.packages[''].version,pkg.version);
   assert.equal(currentNotes(catalog,'1.9.8').items.length,3);
   assert.equal(currentNotes(catalog,'1.9.8').heading,'그룹 초대 및 동료 관리 개선');

@@ -36,7 +36,7 @@ function createUpdateController({app,pkg,packagedConfig,updaterFactory,emit=()=>
       const parts=s=>s.split('.').map(Number);
       const a=parts(latest),b=parts(currentVersion);
       const newer=a.some((n,i)=>n>b[i]&&a.slice(0,i).every((v,j)=>v===b[j]));
-      if(newer)publish('available',{newVersion:latest,percent:0,message:`새 버전 v${latest}가 있어요. Mac 시험판은 다운로드 후 DMG에서 새 앱을 직접 교체해야 합니다.`});
+      if(newer)publish('available',{newVersion:latest,percent:0,message:asset?`Mac용 새 버전 v${latest}가 있어요. GitHub에서 DMG를 내려받아 앱을 직접 교체해 주세요.`:`새 버전 v${latest}가 있어요. Mac DMG가 아직 게시되지 않았다면 GitHub Releases에서 배포 상태를 확인해 주세요.`});
       else publish('current',{newVersion:'',percent:0,message:'현재 최신 버전이에요.'});
     }catch(e){logger.warn('Mac release check failed',e);publish('error',{message:'Mac 버전 확인에 실패했어요. 인터넷과 공개 GitHub Releases를 확인해 주세요.'});}
     finally{busy=false;}

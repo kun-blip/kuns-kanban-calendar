@@ -10,7 +10,7 @@ function environment({ initialState = {phase:'idle', version:'1.7.2'}, initially
   const elements = Object.fromEntries(ids.map(id => [id, {
     id, hidden: ['updateOverlay','feedbackOverlay','welcomeOverlay','shade'].includes(id),
     dataset:{pending:'false'},
-    style:{}, classList:{toggle(){}}, textContent:'', disabled:false,
+    style:{}, classList:{flags:new Set(),toggle(name,active){if(active)this.flags.add(name);else this.flags.delete(name);},contains(name){return this.flags.has(name);}}, textContent:'', disabled:false,
     listeners:{}, addEventListener(event,callback){this.listeners[event] = callback;},
     click(){this.listeners.click?.({target:this});}
   }]));
@@ -166,4 +166,19 @@ test('First-launch welcome blocks update popup until the introduction closes', a
   e.elements.welcomeOverlay.hidden=true;
   e.doc.fire('welcome:changed');
   assert.equal(e.elements.updateOverlay.hidden,false,'update shown after welcome closes');
+});
+
+test('Blue dot appears for a newly available release and clears when current',async()=>{
+  const e=environment();initUpdateCenter(e.win,e.doc,e.bridge);await drain();
+  assert.equal(e.elements.updateLaunch.classList.contains('needs-attention'),false);
+  e.emit(oldVersion);
+  assert.equal(e.elements.updateLaunch.classList.contains('needs-attention'),true);
+  e.emit({phase:'current',version:'1.7.3',newVersion:''});
+  assert.equal(e.elements.updateLaunch.classList.contains('needs-attention'),false);
+});
+test('Mac update is a download-page notification, not automatic installation',async()=>{
+  const e=environment({initialState:oldVersion}); e.bridge.platform='darwin';
+  initUpdateCenter(e.win,e.doc,e.bridge);await drain();
+  assert.equal(e.elements.updateAction.textContent,'Mac 다운로드 페이지 열기');
+  assert.equal(e.elements.updateLaunch.classList.contains('needs-attention'),true);
 });

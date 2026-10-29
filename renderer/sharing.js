@@ -74,8 +74,14 @@
         checklist:r.event_data?.checklist||[],url:r.event_data?.url||'',reminderAt:''
       })));
     }
+    function syncInviteBlueDot(){
+      const launch=$('sharingLaunch');if(!launch)return;
+      const count=session.signedIn?inbox.length:0;
+      launch.classList.toggle('needs-attention',count>0);
+      launch.title=count>0?`받은 일정 초대 ${count}건 · 확인 필요`:'동료와 선택한 일정 공유';
+    }
     async function refresh(){
-      if(!session.signedIn){rows=[];inbox=[];roles=[];contacts=[];onRemoteEvents([]);return;}
+      if(!session.signedIn){rows=[];inbox=[];roles=[];contacts=[];onRemoteEvents([]);syncInviteBlueDot();return;}
       // An authenticated recipient can explicitly trust a saved sender. This never auto-shares private schedules.
       await bridge.sharingAutoAcceptInvites?.().catch(()=>{});
       const [events,contactsResult,invitesResult,rolesResult]=await Promise.all([
@@ -85,6 +91,7 @@
       contacts=Array.isArray(contactsResult)?contactsResult:[];
       inbox=Array.isArray(invitesResult)?invitesResult:[];
       roles=Array.isArray(rolesResult)?rolesResult:[];
+      syncInviteBlueDot();
       renderRemote();renderEventPicker();
       if(!initialInbox){const fresh=inbox.filter(i=>!seen.has(i.invite_id));if(fresh.length)notify(`새로운 일정 초대 ${fresh.length}건이 도착했어요! 상단의 일정 공유를 확인하세요.`);}
       inbox.forEach(i=>seen.add(i.invite_id));initialInbox=false;
@@ -503,7 +510,7 @@
         return;
       }
       const account=line(content,'div','로그인: '+session.email,'share-account');
-      btn(account,'로그아웃',async()=>{session=await bridge.sharingSignOut();rows=[];inbox=[];contacts=[];onRemoteEvents([]);render();renderEventPicker();});
+      btn(account,'로그아웃',async()=>{session=await bridge.sharingSignOut();rows=[];inbox=[];contacts=[];syncInviteBlueDot();onRemoteEvents([]);render();renderEventPicker();});
       const r=selectedRow();
       if(r){
         btn(content,'← 초대함 및 연락처 보기',()=>{selectedId=null;render();});

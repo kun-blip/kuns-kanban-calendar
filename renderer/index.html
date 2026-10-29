@@ -610,6 +610,11 @@ html[data-theme=dark] .event-checklist-section.event-fold,html[data-theme=dark] 
 .share-contact-group .share-list-item .share-list-copy{flex:1;min-width:160px}
 @media(max-width:430px){.share-pick-row{flex-wrap:wrap}.share-pick-row .share-pick-info{flex-basis:100%}.share-group-picker{flex-wrap:wrap}.share-group-picker .share-group-select{flex-basis:100%}}
 
+/* v1.9.10 — blue attention dots: only unresolved invites and available releases. */
+#sharingLaunch.needs-attention,#updateLaunch.needs-attention{position:relative}
+#sharingLaunch.needs-attention::after,#updateLaunch.needs-attention::after{content:"";position:absolute;top:2px;right:2px;width:8px;height:8px;box-sizing:content-box;border-radius:50%;background:#3b82f6;border:2px solid var(--surface,#fff);pointer-events:none;box-shadow:0 0 0 1px rgba(59,130,246,.16)}
+html[data-theme=dark] #sharingLaunch.needs-attention::after,html[data-theme=dark] #updateLaunch.needs-attention::after{border-color:var(--surface,#242c3b)}
+
 /* v1.9.1 invitation and team editing */
 .share-inline-panel{display:grid;gap:7px;border:1px solid var(--line,#e6e9f0);padding:12px;border-radius:12px;background:var(--surface,#fff)}
 .share-inline-panel h4{margin:0;font-size:14px}
