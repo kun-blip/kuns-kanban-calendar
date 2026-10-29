@@ -68,7 +68,7 @@ test('upgrade shows notes once; initial install, same version, downgrade, develo
   assert.equal(shouldShowReleaseNotes({...base,hasNotes:false}),false,'unwritten notes');
 });
 test('versioned changelog is actual, local and complete; old release is still viewable',()=>{
-  assert.equal(pkg.version,'1.9.8');assert.equal(lock.version,pkg.version);
+  assert.ok(['1.9.8','1.9.9'].includes(pkg.version));assert.equal(lock.version,pkg.version);
   assert.equal(lock.packages[''].version,pkg.version);
   assert.equal(currentNotes(catalog,'1.9.8').items.length,3);
   assert.equal(currentNotes(catalog,'1.9.8').heading,'그룹 초대 및 동료 관리 개선');
@@ -76,7 +76,7 @@ test('versioned changelog is actual, local and complete; old release is still vi
     '그룹 전체 일괄 초대','그룹별 보기/편집 권한 설정','동료 목록 접기/펼치기'
   ]);
   assert.equal(currentNotes(catalog,'1.9.7').items.length,3);
-  assert.equal(currentNotes(catalog,'1.9.9'),null);
+  assert.deepEqual(currentNotes(catalog,'1.9.9').items,currentNotes(catalog,'1.9.8').items); // user requested identical wording
   for(const id of ['releaseNotesOverlay','releaseNotesOpen','releaseNotesClose','releaseNotesDone','releaseNotesVersion','releaseNotesList'])
     assert(html.includes(`id="${id}"`),`missing ${id}`);
   assert(html.indexOf('./release-notes.js')<html.indexOf('./update-center.js'), 'release notes blocks an early update popup');

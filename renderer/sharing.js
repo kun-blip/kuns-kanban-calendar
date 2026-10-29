@@ -327,7 +327,7 @@
       if(r.event_data?.gameName)line(section,'p','게임 타이틀: '+r.event_data.gameName,'share-hint');
       if(!editable){
         line(section,'h4','상태','share-heading');
-        line(section,'p',({'todo':'예정 - 소프트런칭','doing':'진행 - 라이브','done':'완료'})[r.event_data?.status]||'예정 - 소프트런칭','share-description');
+        line(section,'p',({'todo':'소프트런칭','doing':'라이브','done':'완료'})[r.event_data?.status]||'소프트런칭','share-description');
         line(section,'h4','자세한 메모','share-heading');
         line(section,'p',r.description||'등록된 메모가 없어요.','share-description');
         if(r.event_data?.url && /^https?:\/\//i.test(r.event_data.url)){
@@ -364,17 +364,20 @@
         const addCheck=field(section,'새 체크 항목');
         btn(section,'체크 항목 추가',()=>{if(addCheck.value.trim()&&checklist.length<40){checklist.push({text:addCheck.value.trim().slice(0,160),done:false});addCheck.value='';drawChecklist();}},'btn sm');
         const status=line(section,'select','','share-input');
-        for(const [v,label] of [['todo','예정 - 소프트런칭'],['doing','진행 - 라이브'],['done','완료']]){
+        for(const [v,label] of [['todo','소프트런칭'],['doing','라이브']]){
           const opt=line(status,'option',label);opt.value=v;
         }
-        status.value=r.event_data?.status||'todo';
+        const originalSharedStatus=r.event_data?.status||'todo';
+        let sharedStatusChanged=false;
+        status.value=originalSharedStatus==='done'?'doing':originalSharedStatus;
+        status.addEventListener('change',()=>{sharedStatusChanged=true;});
         btn(section,'공유 일정 변경 저장',async()=>{
           if(!title.value.trim()||!start.value||!end.value||end.value<start.value){notify('제목과 날짜를 확인해 주세요.');return;}
           const safeUrl=link.value.trim();
           if(safeUrl&&!/^https?:\/\/[^\s]+$/i.test(safeUrl)){notify('관련 링크는 http/https만 지원해요.');return;}
           await bridge.sharingEditShared(r.id,Number(r.revision),{
             id:'remote-edit',title:title.value,start:start.value,end:end.value,
-            description:description.value,status:status.value,color:r.event_data?.color||'#5367e8',
+            description:description.value,status:originalSharedStatus==='done'&&!sharedStatusChanged?'done':status.value,color:r.event_data?.color||'#5367e8',
             url:safeUrl,checklist,gameName:r.event_data?.gameName||''
           });
           await refresh();await detailLoad();notify('수정된 일정이 동료에게 동기화됩니다.');
