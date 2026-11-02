@@ -55,6 +55,83 @@ test('fixed suggestion dropdown is absent and IME composition is respected',()=>
   assert.doesNotMatch(app,/Tags\.suggestions/);
   assert.match(app,/event\.isComposing/);
   assert.match(app,/compositionend/);
-  assert.match(app,/addEventListener\('blur',\(\)=>updateTitleTags\(true\)\)/);
+  assert.match(app,/addEventListener\('blur',\(\)=>\{commitTitleTagOnCompositionEnd=false;updateTitleTags\(true\);\}\)/);
   assert.match(markup,/@ 뒤로 원하는 단어/);
+});
+
+
+test('Enter commits an arbitrary @tag immediately without submitting the form',()=>{
+  const app=source('renderer/app.js');
+  const start=app.indexOf(' function updateTitleTags(commitEnd=false)');
+  const end=app.indexOf(' function openEvent(',start);
+  assert.ok(start>=0&&end>start,'tag handlers found in renderer');
+  const listeners={};
+  const input={
+    value:'콘텐츠 제작 @쿤',selectionStart:'콘텐츠 제작 @쿤'.length,
+    addEventListener(type,handler){listeners[type]=handler;},
+    setSelectionRange(start,end){this.selectionStart=start;this.selectionEnd=end;}
+  };
+  let renderCount=0;
+  const setup=new Function('$','Tags','document','renderTagChips',
+    'let editingTags=[];\n'+app.slice(start,end)+'\nreturn {getTags:()=>editingTags};');
+  const state=setup(()=>input,Tags,{activeElement:input},()=>{renderCount++;});
+  let prevented=false;
+  listeners.keydown({key:'Enter',repeat:false,isComposing:false,keyCode:13,
+    preventDefault(){prevented=true;}});
+  assert.equal(prevented,true);
+  assert.deepEqual(state.getTags().map(tag=>tag.name),['쿤']);
+  assert.equal(input.value,'콘텐츠 제작 ');
+  assert.equal(renderCount,1);
+
+  // Once the tag was consumed, a second Enter behaves normally.
+  prevented=false;
+  listeners.keydown({key:'Enter',repeat:false,isComposing:false,keyCode:13,
+    preventDefault(){prevented=true;}});
+  assert.equal(prevented,false);
+  assert.equal(state.getTags().length,1);
+});
+
+test('Korean IME Enter commits after compositionend without losing Hangul',()=>{
+  const app=source('renderer/app.js');
+  const start=app.indexOf(' function updateTitleTags(commitEnd=false)');
+  const end=app.indexOf(' function openEvent(',start);
+  const listeners={};
+  const input={value:'@',selectionStart:1,
+    addEventListener(type,handler){listeners[type]=handler;},
+    setSelectionRange(start){this.selectionStart=start;}};
+  let renderCount=0;
+  const setup=new Function('$','Tags','document','renderTagChips',
+    'let editingTags=[];\n'+app.slice(start,end)+'\nreturn {getTags:()=>editingTags};');
+  const state=setup(()=>input,Tags,{activeElement:input},()=>{renderCount++;});
+  listeners.compositionstart();
+  input.value='@쿤';input.selectionStart=2;
+  let prevented=false;
+  listeners.keydown({key:'Enter',repeat:false,isComposing:true,keyCode:229,
+    preventDefault(){prevented=true;}});
+  assert.equal(prevented,false,'IME can finish composing its Hangul syllable');
+  assert.equal(state.getTags().length,0,'tag is not consumed during composition');
+  listeners.compositionend();
+  assert.equal(input.value,'');
+  assert.deepEqual(state.getTags().map(tag=>tag.name),['쿤']);
+  assert.equal(renderCount,1);
+});
+
+test('IME compositionend without Enter keeps the partial @word editable',()=>{
+  const app=source('renderer/app.js');
+  const start=app.indexOf(' function updateTitleTags(commitEnd=false)');
+  const end=app.indexOf(' function openEvent(',start);
+  const listeners={};
+  const input={value:'@쿤',selectionStart:2,
+    addEventListener(type,handler){listeners[type]=handler;},
+    setSelectionRange(start){this.selectionStart=start;}};
+  const setup=new Function('$','Tags','document','renderTagChips',
+    'let editingTags=[];\n'+app.slice(start,end)+'\nreturn {getTags:()=>editingTags};');
+  const state=setup(()=>input,Tags,{activeElement:input},()=>{});
+  listeners.compositionstart();
+  listeners.compositionend();
+  assert.equal(input.value,'@쿤');
+  assert.equal(state.getTags().length,0);
+  listeners.blur();
+  assert.equal(input.value,'');
+  assert.equal(state.getTags()[0].name,'쿤');
 });

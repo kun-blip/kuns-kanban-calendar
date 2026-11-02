@@ -591,10 +591,31 @@ if(!DESKTOP)document.addEventListener('visibilitychange',()=>{if(!document.hidde
    editingTags=completed.tags;input.value=completed.title;renderTagChips();
    if(nextPos!==null&&document.activeElement===input)input.setSelectionRange(nextPos,nextPos);
  }
- $('eventTitle').addEventListener('input',event=>{if(!event.isComposing)updateTitleTags();});
- $('eventTitle').addEventListener('compositionend',()=>updateTitleTags());
- // Committing on blur also reveals the last typed @word for color selection.
- $('eventTitle').addEventListener('blur',()=>updateTitleTags(true));
+ const eventTitleInput=$('eventTitle');
+ let titleImeComposing=false,commitTitleTagOnCompositionEnd=false;
+ eventTitleInput.addEventListener('compositionstart',()=>{titleImeComposing=true;});
+ eventTitleInput.addEventListener('input',event=>{if(!event.isComposing&&!titleImeComposing)updateTitleTags();});
+ eventTitleInput.addEventListener('keydown',event=>{
+   if(event.key!=='Enter'||event.repeat)return;
+   // Korean IME uses Enter to finish the last syllable. Finish the tag once
+   // compositionend has delivered the committed character, not before.
+   if(titleImeComposing||event.isComposing||event.keyCode===229){
+     commitTitleTagOnCompositionEnd=true;
+     return;
+   }
+   const completed=Tags.extract(eventTitleInput.value,editingTags,true);
+   if(completed.title===eventTitleInput.value)return; // No tag: keep normal form behavior.
+   event.preventDefault(); // Enter should create a chip, not save the event.
+   updateTitleTags(true);
+ });
+ eventTitleInput.addEventListener('compositionend',()=>{
+   titleImeComposing=false;
+   const commit=commitTitleTagOnCompositionEnd;
+   commitTitleTagOnCompositionEnd=false;
+   updateTitleTags(commit);
+ });
+ // Clicking away still commits the final @word, as before.
+ eventTitleInput.addEventListener('blur',()=>{commitTitleTagOnCompositionEnd=false;updateTitleTags(true);});
  function openEvent(id=null,key=selectedDate,rangeEnd=key){if(id && id.startsWith('shared:')){sharing?.openRemote(id);return;}editingId=id;const e=data.events.find(v=>v.id===id);selectedDate=e?e.start:key;selectedColor=allowedColor(e?.color||COLORS[0]);$('modalTitle').textContent=e?'일정 수정':'새 일정';renderGameSelect(e?e.gameId:'randomdice2');$('gameCreator').hidden=true;editingGameId=null;$('eventTitle').value=e?.title||'';editingTags=Tags.clean(e?.tags);renderTagChips();$('startDate').value=e?.start||key;$('endDate').value=e?.end||rangeEnd;$('eventDescription').value=e?.description||'';$('eventChecklistFold').open=false;$('eventMemoFold').open=false;updateEventMemoPreview();$('eventUrl').value=e?.url||'';editingStatusChanged=false;$('eventStatus').value=e&&eventStatus(e)==='done'?'doing':(e?eventStatus(e):'todo');$('eventRecurrence').value=e?.recurrence||'none';$('eventRecurrenceUntil').value=e?.recurrenceUntil||'';editingChecklist=cleanChecklist(e?.checklist);$('eventChecklistInput').value='';renderEventChecklist();updateRecurrenceHint();setReminderFields(e?.reminderAt||'');$('deleteEvent').hidden=!e;$('duplicateEvent').hidden=!e;$('shareEvent').hidden=!e||!DESKTOP?.sharingPublish;$('newEventHint').hidden=!!e;
 sharing?.resetDraft(!e);$('eventLinkWrap').hidden=!e?.url;if(e?.url)$('eventOpenLink').href=e.url;renderColors();memoOpened=false;$('memoDrawer').hidden=true;shortcutOpened=false;$('shortcutModal').hidden=true;modalOpened=true;$('eventModal').hidden=false;displayOverlay();renderCalendar();setTimeout(()=>$('eventTitle').focus(),50);}
 function updateRecurrenceHint(){const value=$('eventRecurrence').value;$('recurrenceUntilWrap').hidden=value==='none';$('recurrenceHint').textContent=value==='none'?'반복하지 않는 단일 일정입니다.':'주간·월간 반복은 일정 하나로 저장되며 반복 종료일을 설정해야 합니다.';}

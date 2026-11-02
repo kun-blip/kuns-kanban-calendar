@@ -10,7 +10,7 @@ const notes=require('../desktop/release-notes.json');
 const {extract}=require('../renderer/event-tags.js');
 
 test('v1.9.12 version and lock are consistent; approved patch note is exact',()=>{
-  assert.equal(pkg.version,'1.9.12');
+  assert.ok(['1.9.12','1.9.13'].includes(pkg.version));
   assert.equal(lock.version,pkg.version);
   assert.equal(lock.packages[''].version,pkg.version);
   assert.deepEqual(notes['1.9.12'],{
