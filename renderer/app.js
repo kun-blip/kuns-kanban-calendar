@@ -579,28 +579,23 @@ if(!DESKTOP)document.addEventListener('visibilitychange',()=>{if(!document.hidde
      const remove=document.createElement('button');remove.type='button';remove.className='event-tag-remove-btn';remove.textContent='×';remove.title=tag.name+' 태그 삭제';remove.addEventListener('click',()=>{editingTags=editingTags.filter(t=>t.name!==tag.name);renderTagChips();});host.appendChild(remove);
    }
  }
- function addTag(name){
-   const value=String(name||'').replace(/^@/,'');if(!/^[\p{L}\p{N}_-]{1,20}$/u.test(value))return;
-   if(!editingTags.some(t=>t.name===value)&&editingTags.length<8)editingTags=Tags.clean([...editingTags,{name:value}]);
-   const title=$('eventTitle');title.value=title.value.replace(new RegExp('(^|\\s)@'+value+'(?=\\s|$)','u'),' ').replace(/\s+/g,' ').trimStart();
-   $('tagSuggestions').hidden=true;renderTagChips();title.focus();
+ // Any valid @word becomes a tag; there is no fixed recommendation dropdown.
+ // Avoid processing Hangul while the IME is still composing a syllable.
+ function updateTitleTags(commitEnd=false){
+   const input=$('eventTitle');
+   const completed=Tags.extract(input.value,editingTags,commitEnd);
+   if(completed.title===input.value)return;
+   // Keep the caret near the place where an inline @tag was consumed.
+   const pos=input.selectionStart;
+   const nextPos=pos===null?null:Tags.extract(input.value.slice(0,pos),editingTags,commitEnd).title.length;
+   editingTags=completed.tags;input.value=completed.title;renderTagChips();
+   if(nextPos!==null&&document.activeElement===input)input.setSelectionRange(nextPos,nextPos);
  }
- function updateTagSuggestions(){
-   const input=$('eventTitle');const value=input.value;
-   const completed=Tags.extract(value,editingTags,false);
-   if(completed.tags.length>editingTags.length){editingTags=completed.tags;input.value=completed.title;renderTagChips();}
-   const match=input.value.match(/(?:^|\s)@([\p{L}\p{N}_-]{0,20})$/u);
-   const host=$('tagSuggestions');host.replaceChildren();
-   if(!match){host.hidden=true;return;}
-   const needle=match[1];const suggestions=Tags.suggestions.filter(t=>t.includes(needle)&&!editingTags.some(tag=>tag.name===t));
-   for(const label of suggestions){const btn=document.createElement('button');btn.type='button';btn.textContent='@'+label;btn.addEventListener('mousedown',event=>event.preventDefault());btn.addEventListener('click',()=>addTag(label));host.appendChild(btn);}
-   host.hidden=suggestions.length===0;
- }
- $('eventTitle').addEventListener('input',updateTagSuggestions);
- $('eventTitle').addEventListener('keydown',event=>{
-   if(event.key==='Enter'&&!$('tagSuggestions').hidden){const first=$('tagSuggestions').querySelector('button');if(first){event.preventDefault();first.click();}}
- });
- function openEvent(id=null,key=selectedDate,rangeEnd=key){if(id && id.startsWith('shared:')){sharing?.openRemote(id);return;}editingId=id;const e=data.events.find(v=>v.id===id);selectedDate=e?e.start:key;selectedColor=allowedColor(e?.color||COLORS[0]);$('modalTitle').textContent=e?'일정 수정':'새 일정';renderGameSelect(e?e.gameId:'randomdice2');$('gameCreator').hidden=true;editingGameId=null;$('eventTitle').value=e?.title||'';editingTags=Tags.clean(e?.tags);renderTagChips();$('tagSuggestions').hidden=true;$('startDate').value=e?.start||key;$('endDate').value=e?.end||rangeEnd;$('eventDescription').value=e?.description||'';$('eventChecklistFold').open=false;$('eventMemoFold').open=false;updateEventMemoPreview();$('eventUrl').value=e?.url||'';editingStatusChanged=false;$('eventStatus').value=e&&eventStatus(e)==='done'?'doing':(e?eventStatus(e):'todo');$('eventRecurrence').value=e?.recurrence||'none';$('eventRecurrenceUntil').value=e?.recurrenceUntil||'';editingChecklist=cleanChecklist(e?.checklist);$('eventChecklistInput').value='';renderEventChecklist();updateRecurrenceHint();setReminderFields(e?.reminderAt||'');$('deleteEvent').hidden=!e;$('duplicateEvent').hidden=!e;$('shareEvent').hidden=!e||!DESKTOP?.sharingPublish;$('newEventHint').hidden=!!e;
+ $('eventTitle').addEventListener('input',event=>{if(!event.isComposing)updateTitleTags();});
+ $('eventTitle').addEventListener('compositionend',()=>updateTitleTags());
+ // Committing on blur also reveals the last typed @word for color selection.
+ $('eventTitle').addEventListener('blur',()=>updateTitleTags(true));
+ function openEvent(id=null,key=selectedDate,rangeEnd=key){if(id && id.startsWith('shared:')){sharing?.openRemote(id);return;}editingId=id;const e=data.events.find(v=>v.id===id);selectedDate=e?e.start:key;selectedColor=allowedColor(e?.color||COLORS[0]);$('modalTitle').textContent=e?'일정 수정':'새 일정';renderGameSelect(e?e.gameId:'randomdice2');$('gameCreator').hidden=true;editingGameId=null;$('eventTitle').value=e?.title||'';editingTags=Tags.clean(e?.tags);renderTagChips();$('startDate').value=e?.start||key;$('endDate').value=e?.end||rangeEnd;$('eventDescription').value=e?.description||'';$('eventChecklistFold').open=false;$('eventMemoFold').open=false;updateEventMemoPreview();$('eventUrl').value=e?.url||'';editingStatusChanged=false;$('eventStatus').value=e&&eventStatus(e)==='done'?'doing':(e?eventStatus(e):'todo');$('eventRecurrence').value=e?.recurrence||'none';$('eventRecurrenceUntil').value=e?.recurrenceUntil||'';editingChecklist=cleanChecklist(e?.checklist);$('eventChecklistInput').value='';renderEventChecklist();updateRecurrenceHint();setReminderFields(e?.reminderAt||'');$('deleteEvent').hidden=!e;$('duplicateEvent').hidden=!e;$('shareEvent').hidden=!e||!DESKTOP?.sharingPublish;$('newEventHint').hidden=!!e;
 sharing?.resetDraft(!e);$('eventLinkWrap').hidden=!e?.url;if(e?.url)$('eventOpenLink').href=e.url;renderColors();memoOpened=false;$('memoDrawer').hidden=true;shortcutOpened=false;$('shortcutModal').hidden=true;modalOpened=true;$('eventModal').hidden=false;displayOverlay();renderCalendar();setTimeout(()=>$('eventTitle').focus(),50);}
 function updateRecurrenceHint(){const value=$('eventRecurrence').value;$('recurrenceUntilWrap').hidden=value==='none';$('recurrenceHint').textContent=value==='none'?'반복하지 않는 단일 일정입니다.':'주간·월간 반복은 일정 하나로 저장되며 반복 종료일을 설정해야 합니다.';}
 $('eventRecurrence').addEventListener('change',updateRecurrenceHint);
