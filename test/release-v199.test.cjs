@@ -12,18 +12,18 @@ const pkg=require('../package.json');
 const lock=require('../package-lock.json');
 
 test('version and lockfile aligned after v1.9.9',()=>{
- assert.match(pkg.version,/^1\.9\.(?:9|10|11|12|13)$/);assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);
+ assert.match(pkg.version,/^1\.9\.(?:9|10|11|12|13|14)$/);assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);
 });
 test('v1.9.9 patch note wording stays exactly identical to v1.9.8',()=>{
  assert.deepEqual(catalog['1.9.9'],catalog['1.9.8']);
  assert.equal(catalog['1.9.9'].items.length,3);
 });
-test('event status dropdown has exactly soft launch and live choices',()=>{
- const markup=html.match(/<select id="eventStatus"[^>]*>([\s\S]*?)<\/select>/)?.[1];
- assert.ok(markup,'status select exists');
- assert.deepEqual([...markup.matchAll(/<option value="([^"]+)">([^<]+)<\/option>/g)].map(x=>[x[1],x[2]]),[['todo','소프트런칭'],['doing','라이브']]);
+test('old status values remain readable, while editor uses the tag library',()=>{
+ assert.match(html,/id="eventStatus" value="todo"/);
+ assert.doesNotMatch(html,/id="eventStatus" class="status-select"/);
+ assert.match(html,/id="tagLibraryField"/);
  const filter=html.match(/<select id="filterStatus"[^>]*>([\s\S]*?)<\/select>/)?.[1];
- assert.ok(filter);assert(!filter.includes('예정 -')&&!filter.includes('진행 -'));
+ assert.ok(filter);
  assert.match(app,/const STATUS_NAMES=\{todo:'소프트런칭',doing:'라이브',done:'완료'\}/);
 });
 test('old completed records remain untouched until user explicitly switches status',()=>{

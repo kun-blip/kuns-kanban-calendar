@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const Tags=require('../renderer/event-tags.js');
+const TagLibrary=require('../renderer/tag-library.js');
 const source=(name)=>fs.readFileSync(path.join(__dirname,'..',name),'utf8');
 
 test('custom Korean, English and mixed @words become colored tags without a whitelist',()=>{
@@ -56,7 +57,7 @@ test('fixed suggestion dropdown is absent and IME composition is respected',()=>
   assert.match(app,/event\.isComposing/);
   assert.match(app,/compositionend/);
   assert.match(app,/addEventListener\('blur',\(\)=>\{commitTitleTagOnCompositionEnd=false;updateTitleTags\(true\);\}\)/);
-  assert.match(markup,/@ 뒤로 원하는 단어/);
+  assert.match(markup,/@단어를 입력하고 Enter/);
 });
 
 
@@ -72,9 +73,9 @@ test('Enter commits an arbitrary @tag immediately without submitting the form',(
     setSelectionRange(start,end){this.selectionStart=start;this.selectionEnd=end;}
   };
   let renderCount=0;
-  const setup=new Function('$','Tags','document','renderTagChips',
+  const setup=new Function('$','Tags','TagLibrary','document','renderTagChips','renderTagLibrary','rememberEditedTags','data',
     'let editingTags=[];\n'+app.slice(start,end)+'\nreturn {getTags:()=>editingTags};');
-  const state=setup(()=>input,Tags,{activeElement:input},()=>{renderCount++;});
+  const state=setup(()=>input,Tags,TagLibrary,{activeElement:input},()=>{renderCount++;},()=>{},()=>{},{tagLibrary:[],tagLibraryHidden:[]});
   let prevented=false;
   listeners.keydown({key:'Enter',repeat:false,isComposing:false,keyCode:13,
     preventDefault(){prevented=true;}});
@@ -100,9 +101,9 @@ test('Korean IME Enter commits after compositionend without losing Hangul',()=>{
     addEventListener(type,handler){listeners[type]=handler;},
     setSelectionRange(start){this.selectionStart=start;}};
   let renderCount=0;
-  const setup=new Function('$','Tags','document','renderTagChips',
+  const setup=new Function('$','Tags','TagLibrary','document','renderTagChips','renderTagLibrary','rememberEditedTags','data',
     'let editingTags=[];\n'+app.slice(start,end)+'\nreturn {getTags:()=>editingTags};');
-  const state=setup(()=>input,Tags,{activeElement:input},()=>{renderCount++;});
+  const state=setup(()=>input,Tags,TagLibrary,{activeElement:input},()=>{renderCount++;},()=>{},()=>{},{tagLibrary:[],tagLibraryHidden:[]});
   listeners.compositionstart();
   input.value='@쿤';input.selectionStart=2;
   let prevented=false;
@@ -124,9 +125,9 @@ test('IME compositionend without Enter keeps the partial @word editable',()=>{
   const input={value:'@쿤',selectionStart:2,
     addEventListener(type,handler){listeners[type]=handler;},
     setSelectionRange(start){this.selectionStart=start;}};
-  const setup=new Function('$','Tags','document','renderTagChips',
+  const setup=new Function('$','Tags','TagLibrary','document','renderTagChips','renderTagLibrary','rememberEditedTags','data',
     'let editingTags=[];\n'+app.slice(start,end)+'\nreturn {getTags:()=>editingTags};');
-  const state=setup(()=>input,Tags,{activeElement:input},()=>{});
+  const state=setup(()=>input,Tags,TagLibrary,{activeElement:input},()=>{},()=>{},()=>{},{tagLibrary:[],tagLibraryHidden:[]});
   listeners.compositionstart();
   listeners.compositionend();
   assert.equal(input.value,'@쿤');

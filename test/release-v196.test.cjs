@@ -84,9 +84,9 @@ test('event editor collapses optional fields and preserves form IDs and label va
  assert.match(html,/<details class="field event-fold event-memo-fold" id="eventMemoFold">/);
  assert(html.indexOf('id="eventUrl"')<html.indexOf('id="eventCollabPicker"'));
  for(const id of ['eventChecklist','eventChecklistInput','eventDescription','eventUrl','eventCollabPicker'])assert(html.includes(`id="${id}"`));
- assert.match(html,/label for="eventStatus">상태<\/label>/);
- assert.match(html,/<option value="todo">소프트런칭<\/option>/);
- assert.match(html,/<option value="doing">라이브<\/option>/);
+ assert.match(html,/id="tagLibraryField"/);
+ assert.match(html,/id="tagLibraryList"/);
+ assert.match(html,/id="eventStatus" value="todo"/);
  assert.match(app,/const STATUS_NAMES=\{todo:'소프트런칭',doing:'라이브',done:'완료'\}/);
  assert.match(app,/\$\('eventChecklistFold'\)\.open=false;\$\('eventMemoFold'\)\.open=false/);
  assert.match(app,/\$\('eventMemoPreview'\)\.textContent=value/);
