@@ -17,7 +17,7 @@ test('old event tags migrate into reusable saved catalog on first launch',()=>{
 test('saved tags can be applied to any new event, preserving chosen color',()=>{
  let catalog=Library.initial([]);
  catalog=Library.add(catalog,{name:'쿤',color:'#123456'}).catalog;
- assert.deepEqual(Library.match(catalog,[{name:'쿤',color:'#000000'}]),[{name:'쿤',color:'#123456'}]);
+ assert.deepEqual(Library.match(catalog,[{name:'쿤',color:'#000000'}]),[{name:'쿤',color:'#123456',textColor:'#ffffff'}]);
  assert.equal(Library.remember(catalog,[{name:'쿤',color:'#222222'}]).length,catalog.length);
 });
 

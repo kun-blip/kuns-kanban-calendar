@@ -26,7 +26,7 @@ const dateAdd=(date,n)=>new Date(date.getFullYear(),date.getMonth(),date.getDate
 const uid=()=>typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():`id-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
 const safeLink=v=>{if(typeof v!=='string'||!v.trim())return '';let input=v.trim();if(/^www\./i.test(input))input='https://'+input;try{const url=new URL(input);return ['https:','http:'].includes(url.protocol)?url.href:'';}catch{return '';}};
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const workdayCount=(start,end)=>{const a=parseKey(start),b=parseKey(end);if(!a||!b||b<a)return 0;const days=Math.round((Date.UTC(b.getFullYear(),b.getMonth(),b.getDate())-Date.UTC(a.getFullYear(),a.getMonth(),a.getDate()))/86400000)+1;let result=Math.floor(days/7)*5;for(let i=0;i<days%7;i++){const day=(a.getDay()+i)%7;if(day!==0&&day!==6)result++;}return result;};
+const workdayCount=(start,end)=>{const a=parseKey(start),b=parseKey(end);if(!a||!b||b<a)return 0;if(start===end)return 1;const days=Math.round((Date.UTC(b.getFullYear(),b.getMonth(),b.getDate())-Date.UTC(a.getFullYear(),a.getMonth(),a.getDate()))/86400000)+1;let result=Math.floor(days/7)*5;for(let i=0;i<days%7;i++){const day=(a.getDay()+i)%7;if(day!==0&&day!==6)result++;}return result;};
 const fmtDate=k=>{const d=parseKey(k);return d?`${d.getMonth()+1}월 ${d.getDate()}일`:k;};
 const sampleData=()=>{let y=today.getFullYear(),m=today.getMonth();const dt=d=>toDateKey(new Date(y,m,d));return{version:11,theme:'light',widgetCalendarMode:'month',calendarMode:'month',weekStart:0,notificationsEnabled:true,recentColors:[],todos:[],events:[
 {id:uid(),title:'예시 · 프로모션 영상 제작',start:dt(3),end:dt(8),color:COLORS[0],description:'날짜를 클릭하거나 이 블록을 눌러 원하는 일정으로 수정해보세요.',url:'',completed:false},
@@ -262,15 +262,12 @@ $('shortcutForm').addEventListener('submit',async ev=>{
 });
 function makeSegments(weekStart){
  const start=toDateKey(weekStart),end=toDateKey(dateAdd(weekStart,6));
- // Timeline cells include Mon..Fri, regardless of chosen week start.
- // Weekends stay in the saved start/end dates but are visually skipped.
+ // A one-day event (including a Saturday/Sunday launch) appears on its date.
+ // Multi-day timelines continue to skip weekends, without altering saved dates.
  const allowed=new Set(matchingEvents().map(e=>e.id));
   const segs=Planner.expand(allVisibleEvents(),start,end).filter(e=>allowed.has(e.id)).map(e=>{
-   const st=e.start<start?start:e.start,en=e.end>end?end:e.end;
-   const first=Math.round((parseKey(st)-weekStart)/86400000),last=Math.round((parseKey(en)-weekStart)/86400000);
-   const [firstWorkday,lastWorkday]=Planner.workdayBounds(data.weekStart);const startIndex=Math.max(firstWorkday,first),endIndex=Math.min(lastWorkday,last);
-   if(startIndex>endIndex)return null; // weekend only
-   return {e,startIndex,endIndex,leftContinuation:e.start<toDateKey(dateAdd(weekStart,startIndex)),rightContinuation:e.end>toDateKey(dateAdd(weekStart,endIndex))};
+   const bounds=Planner.timelineBounds(e.start,e.end,start,data.weekStart);
+   return bounds?{e,...bounds}:null;
  }).filter(Boolean).sort((a,b)=>a.startIndex-b.startIndex || (b.endIndex-b.startIndex)-(a.endIndex-a.startIndex) || a.e.title.localeCompare(b.e.title));
  const laneEnds=[];
  for(const segment of segs){let lane=laneEnds.findIndex(v=>v<segment.startIndex);if(lane<0){lane=laneEnds.length;laneEnds.push(segment.endIndex);}else laneEnds[lane]=segment.endIndex;segment.lane=lane;}
@@ -307,7 +304,7 @@ for(const weekStart of monthWeeks()){
   for(const s of segs){if(s.lane>=maxShown)continue;const block=document.createElement('button');block.type='button';block.className='event-block'+(compact?'':' detailed')+(s.leftContinuation?' continues-before':'')+(s.rightContinuation?' continues-after':'')+(eventStatus(s.e)==='done'?' completed':'')+' status-'+eventStatus(s.e);block.style.setProperty('--event-color',s.e.color);block.style.left=`calc(${(100*s.startIndex/7).toFixed(6)}% + 5px)`;block.style.width=`calc(${(100*(s.endIndex-s.startIndex+1)/7).toFixed(6)}% - 10px)`;block.style.top=(40+step*s.lane)+'px';block.title=`[${STATUS_NAMES[eventStatus(s.e)]}] ${s.e.title} (${workdayCount(s.e.start,s.e.end)}일)\n${s.e.start} ~ ${s.e.end}${s.e.description?'\n'+s.e.description:''}`;
      
      const displayTagInfo=Tags.legacyTags(s.e.title,s.e.tags);
-     for(const tag of displayTagInfo.tags){const chip=document.createElement('span');chip.className='timeline-tag';chip.textContent=tag.name;chip.style.setProperty('--tag-color',tag.color);block.appendChild(chip);}
+     for(const tag of displayTagInfo.tags){const chip=document.createElement('span');chip.className='timeline-tag';chip.textContent=tag.name;chip.style.setProperty('--tag-color',tag.color);chip.style.setProperty('--tag-text-color',tag.textColor||'#ffffff');block.appendChild(chip);}
      const dot=document.createElement('span');dot.className='event-status-dot';dot.title='상태: '+STATUS_NAMES[eventStatus(s.e)];block.appendChild(dot);
      const g=gameById(s.e.gameId);const src=gameIcon(g);if(src){const pic=document.createElement('img');pic.className='event-game-icon';pic.src=src;pic.alt='';pic.setAttribute('aria-hidden','true');block.appendChild(pic);} const name=document.createElement('span');name.className='event-label';name.textContent=displayTagInfo.title||s.e.title;block.appendChild(name);const duration=workdayCount(s.e.start,s.e.end);if(duration>1){const days=document.createElement('span');days.className='event-duration';days.textContent=`(${duration}일)`;block.appendChild(days);}if(s.e.checklist?.length){const progress=document.createElement('span');progress.className='event-check-progress';progress.textContent=s.e.checklist.filter(c=>c.done).length+'/'+s.e.checklist.length;progress.title='작업 체크리스트 진행률';block.appendChild(progress);}
      if(s.e.url){const g=document.createElement('span');g.className='link-glyph';g.textContent='↗';block.appendChild(g);}
@@ -316,7 +313,7 @@ for(const weekStart of monthWeeks()){
      if(s.e.remoteReadOnly){block.title+='\n동료가 공유한 읽기 전용 일정입니다.';}else if(s.e.isOccurrence){block.title+='\n반복 일정은 편집창에서 전체 반복을 수정하세요.';}else{
        let finalVisible=s.e.end;
    for(let back=0;back<7;back++){const weekday=parseKey(finalVisible).getDay();if(weekday>0&&weekday<6)break;finalVisible=Planner.add(finalVisible,-1);}
-   if(finalVisible===toDateKey(dateAdd(weekStart,s.endIndex))){const grip=document.createElement('span');grip.className='resize-grip';grip.title='드래그하여 종료일 변경';block.appendChild(grip);}
+   if((s.e.start===s.e.end || finalVisible===toDateKey(dateAdd(weekStart,s.endIndex)))){const grip=document.createElement('span');grip.className='resize-grip';grip.title='드래그하여 종료일 변경';block.appendChild(grip);}
        block.addEventListener('pointerdown',ev=>startTimelineDrag(ev,block,s.e,weekStart));
      }
      layer.appendChild(block);
@@ -584,7 +581,7 @@ if(!DESKTOP)document.addEventListener('visibilitychange',()=>{if(!document.hidde
    for(const tag of data.tagLibrary){
      const row=document.createElement('div');row.className='tag-library-item';
      const pick=document.createElement('button');pick.type='button';pick.className='tag-library-pick';
-     pick.style.setProperty('--tag-color',tag.color);
+     pick.style.setProperty('--tag-color',tag.color);pick.style.setProperty('--tag-text-color',tag.textColor||'#ffffff');
      pick.setAttribute('aria-pressed',String(present.has(tag.name)));
      pick.title=tag.name+' 태그 '+(present.has(tag.name)?'해제':'일정에 적용');
      pick.textContent=(present.has(tag.name)?'✓ ':'+ ')+tag.name;
@@ -592,7 +589,7 @@ if(!DESKTOP)document.addEventListener('visibilitychange',()=>{if(!document.hidde
        if(present.has(tag.name))editingTags=editingTags.filter(t=>t.name!==tag.name);
        else if(editingTags.length>=8){notify('일정에는 최대 8개 태그를 적용할 수 있어요.');return;}
        else editingTags.push({...tag});
-       renderTagChips();renderTagLibrary();
+       renderTagChips();renderTagLibrary();$('tagLibraryFold').open=false;
      });
      const edit=document.createElement('button');edit.type='button';edit.className='tag-library-edit';edit.textContent='✎';
      edit.title=tag.name+' 태그 이름·색상 수정';edit.setAttribute('aria-label',tag.name+' 태그 편집');
@@ -608,10 +605,19 @@ if(!DESKTOP)document.addEventListener('visibilitychange',()=>{if(!document.hidde
    $('tagLibraryEditor').hidden=false;
    $('tagLibraryName').value=tag?.name||'';
    $('tagLibraryColor').value=tag?.color||'#526aa6';
+   $('tagLibraryTextColor').value=tag?.textColor||'#ffffff';
+   updateTagPreview();
    $('deleteSavedTag').hidden=!tag;
    $('tagLibrarySave').textContent=tag?'수정 저장':'태그 등록';
    $('tagLibraryName').focus();
  }
+ function updateTagPreview(){
+   const chip=$('tagLibraryPreviewChip');
+   chip.textContent=TagLibrary.normalizeName($('tagLibraryName').value)||'태그 미리보기';
+   chip.style.backgroundColor=$('tagLibraryColor').value;
+   chip.style.color=$('tagLibraryTextColor').value;
+ }
+ for(const id of ['tagLibraryName','tagLibraryColor','tagLibraryTextColor'])$(id).addEventListener('input',updateTagPreview);
  function closeTagEditor(){$('tagLibraryEditor').hidden=true;tagEditingName=null;}
  $('createTag').addEventListener('click',()=>openTagEditor());
  $('cancelTagEdit').addEventListener('click',closeTagEditor);
@@ -622,8 +628,8 @@ if(!DESKTOP)document.addEventListener('visibilitychange',()=>{if(!document.hidde
    }
  }
  $('tagLibrarySave').addEventListener('click',()=>{
-   const name=TagLibrary.normalizeName($('tagLibraryName').value),color=$('tagLibraryColor').value;
-   const result=tagEditingName?TagLibrary.update(data.tagLibrary,tagEditingName,name,color):TagLibrary.add(data.tagLibrary,{name,color});
+   const name=TagLibrary.normalizeName($('tagLibraryName').value),color=$('tagLibraryColor').value,textColor=$('tagLibraryTextColor').value;
+   const result=tagEditingName?TagLibrary.update(data.tagLibrary,tagEditingName,name,color,textColor):TagLibrary.add(data.tagLibrary,{name,color,textColor});
    if(result.error){notify(result.error);return;}
    data.tagLibrary=result.catalog;
    data.tagLibraryHidden=data.tagLibraryHidden.filter(hidden=>hidden!==name);
@@ -646,8 +652,8 @@ if(!DESKTOP)document.addEventListener('visibilitychange',()=>{if(!document.hidde
  function renderTagChips(){
    const host=$('eventTagChips');host.replaceChildren();
    for(const tag of editingTags){
-     const button=document.createElement('button');button.type='button';button.className='event-tag-chip';button.style.setProperty('--tag-color',tag.color);button.textContent=tag.name+'  ✎';button.title=tag.name+' 태그 이름·색상 수정';
-     button.addEventListener('click',()=>openTagEditor(tag.name));host.append(button);
+     const button=document.createElement('button');button.type='button';button.className='event-tag-chip';button.style.setProperty('--tag-color',tag.color);button.style.setProperty('--tag-text-color',tag.textColor||'#ffffff');button.textContent=tag.name+'  ✎';button.title=tag.name+' 태그 이름·색상 수정';
+     button.addEventListener('click',()=>{$('tagLibraryFold').open=true;openTagEditor(tag.name);});host.append(button);
      const remove=document.createElement('button');remove.type='button';remove.className='event-tag-remove-btn';remove.textContent='×';remove.title=tag.name+' 태그 삭제';remove.addEventListener('click',()=>{editingTags=editingTags.filter(t=>t.name!==tag.name);renderTagChips();renderTagLibrary();});host.appendChild(remove);
    }
  }
@@ -689,7 +695,7 @@ if(!DESKTOP)document.addEventListener('visibilitychange',()=>{if(!document.hidde
  });
  // Clicking away still commits the final @word, as before.
  eventTitleInput.addEventListener('blur',()=>{commitTitleTagOnCompositionEnd=false;updateTitleTags(true);});
- function openEvent(id=null,key=selectedDate,rangeEnd=key){if(id && id.startsWith('shared:')){sharing?.openRemote(id);return;}editingId=id;const e=data.events.find(v=>v.id===id);selectedDate=e?e.start:key;selectedColor=allowedColor(e?.color||COLORS[0]);$('modalTitle').textContent=e?'일정 수정':'새 일정';renderGameSelect(e?e.gameId:'randomdice2');$('gameCreator').hidden=true;editingGameId=null;$('eventTitle').value=e?.title||'';editingTags=TagLibrary.match(data.tagLibrary,Tags.clean(e?.tags));renderTagChips();renderTagLibrary();closeTagEditor();$('startDate').value=e?.start||key;$('endDate').value=e?.end||rangeEnd;$('eventDescription').value=e?.description||'';$('eventChecklistFold').open=false;$('eventMemoFold').open=false;updateEventMemoPreview();$('eventUrl').value=e?.url||'';editingStatusChanged=false;$('eventStatus').value=e&&eventStatus(e)==='done'?'doing':(e?eventStatus(e):'todo');$('eventRecurrence').value=e?.recurrence||'none';$('eventRecurrenceUntil').value=e?.recurrenceUntil||'';editingChecklist=cleanChecklist(e?.checklist);$('eventChecklistInput').value='';renderEventChecklist();updateRecurrenceHint();setReminderFields(e?.reminderAt||'');$('deleteEvent').hidden=!e;$('duplicateEvent').hidden=!e;$('shareEvent').hidden=!e||!DESKTOP?.sharingPublish;$('newEventHint').hidden=!!e;
+ function openEvent(id=null,key=selectedDate,rangeEnd=key){if(id && id.startsWith('shared:')){sharing?.openRemote(id);return;}editingId=id;const e=data.events.find(v=>v.id===id);selectedDate=e?e.start:key;selectedColor=allowedColor(e?.color||COLORS[0]);$('modalTitle').textContent=e?'일정 수정':'새 일정';renderGameSelect(e?e.gameId:'randomdice2');$('gameCreator').hidden=true;editingGameId=null;$('eventTitle').value=e?.title||'';editingTags=TagLibrary.match(data.tagLibrary,Tags.clean(e?.tags));renderTagChips();renderTagLibrary();$('tagLibraryFold').open=false;closeTagEditor();$('startDate').value=e?.start||key;$('endDate').value=e?.end||rangeEnd;$('eventDescription').value=e?.description||'';$('eventChecklistFold').open=false;$('eventMemoFold').open=false;updateEventMemoPreview();$('eventUrl').value=e?.url||'';editingStatusChanged=false;$('eventStatus').value=e&&eventStatus(e)==='done'?'doing':(e?eventStatus(e):'todo');$('eventRecurrence').value=e?.recurrence||'none';$('eventRecurrenceUntil').value=e?.recurrenceUntil||'';editingChecklist=cleanChecklist(e?.checklist);$('eventChecklistInput').value='';renderEventChecklist();updateRecurrenceHint();setReminderFields(e?.reminderAt||'');$('deleteEvent').hidden=!e;$('duplicateEvent').hidden=!e;$('shareEvent').hidden=!e||!DESKTOP?.sharingPublish;$('newEventHint').hidden=!!e;
 sharing?.resetDraft(!e);$('eventLinkWrap').hidden=!e?.url;if(e?.url)$('eventOpenLink').href=e.url;renderColors();memoOpened=false;$('memoDrawer').hidden=true;shortcutOpened=false;$('shortcutModal').hidden=true;modalOpened=true;$('eventModal').hidden=false;displayOverlay();renderCalendar();setTimeout(()=>$('eventTitle').focus(),50);}
 function updateRecurrenceHint(){const value=$('eventRecurrence').value;$('recurrenceUntilWrap').hidden=value==='none';$('recurrenceHint').textContent=value==='none'?'반복하지 않는 단일 일정입니다.':'주간·월간 반복은 일정 하나로 저장되며 반복 종료일을 설정해야 합니다.';}
 $('eventRecurrence').addEventListener('change',updateRecurrenceHint);

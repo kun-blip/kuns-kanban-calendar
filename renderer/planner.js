@@ -13,6 +13,25 @@
   function week(k,startDay=0){if(!valid(k))return k;const first=startDay===1?1:0;return add(k,-((utc(k).getUTCDay()-first+7)%7));}
   function dayOrder(startDay=0){const first=startDay===1?1:0;return Array.from({length:7},(_,index)=>(first+index)%7);}
   function workdayBounds(startDay=0){return startDay===1?[0,4]:[1,5];}
+  // A single-day event may appear on any day, including Saturday or Sunday.
+  // For multi-day events, keep the previous weekday-only timeline rule.
+  // This is display-only: never change the event's stored start/end dates.
+  function timelineBounds(start,end,weekStart,startDay=0){
+    if(!valid(start)||!valid(end)||!valid(weekStart)||end<start)return null;
+    const weekEnd=add(weekStart,6);
+    if(end<weekStart||start>weekEnd)return null;
+    const clippedStart=start<weekStart?weekStart:start;
+    const clippedEnd=end>weekEnd?weekEnd:end;
+    const first=days(weekStart,clippedStart),last=days(weekStart,clippedEnd);
+    const [minDay,maxDay]=start===end?[0,6]:workdayBounds(startDay);
+    const startIndex=Math.max(minDay,first),endIndex=Math.min(maxDay,last);
+    if(startIndex>endIndex)return null;
+    return {
+      startIndex,endIndex,
+      leftContinuation:start<add(weekStart,startIndex),
+      rightContinuation:end>add(weekStart,endIndex)
+    };
+  }
   function expand(events,from,to){
     const out=[];
     for(const event of events){
@@ -31,5 +50,5 @@
     }
     return out;
   }
-  return {add,days,monthly,week,dayOrder,workdayBounds,expand};
+  return {add,days,monthly,week,dayOrder,workdayBounds,timelineBounds,expand};
 });

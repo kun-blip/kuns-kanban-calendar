@@ -26,7 +26,7 @@ test('repeating a tag does not duplicate it or leave the typed token in title',(
   const tags=[{name:'검수',color:'#123456'}];
   const result=Tags.extract('신규 영상 @검수 @검수 편집',tags,false);
   assert.equal(result.title,'신규 영상 편집');
-  assert.deepEqual(result.tags,tags);
+  assert.deepEqual(result.tags,[{...tags[0],textColor:'#ffffff'}]);
 });
 
 test('extra @word is preserved when event already has eight tags',()=>{

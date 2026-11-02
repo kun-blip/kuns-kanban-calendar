@@ -22,7 +22,7 @@ test('unfinished @tag input is not consumed before user commits it',()=>{
 });
 test('tag list is bounded, deduplicated and validates colors',()=>{
  const tags=Tags.clean([{name:'검수',color:'#ABCDEF'},{name:'검수',color:'#123456'},{name:'bad tag',color:'red'},{name:'빌드',color:'bogus'}]);
- assert.deepEqual(tags,[{name:'검수',color:'#abcdef'},{name:'빌드',color:'#a86a32'}]);
+ assert.deepEqual(tags,[{name:'검수',color:'#abcdef',textColor:'#ffffff'},{name:'빌드',color:'#a86a32',textColor:'#ffffff'}]);
 });
 test('old [검수] prefixes render as tags without overwriting data',()=>{
  const old='[검수] Board Quest';const converted=Tags.legacyTags(old,[]);
@@ -31,7 +31,7 @@ test('old [검수] prefixes render as tags without overwriting data',()=>{
 });
 test('shared payload transmits valid tag name/color and never arbitrary HTML',()=>{
  const item=normalizeEvent({id:'e-001',title:'캠페인',start:'2026-11-16',end:'2026-11-19',tags:[{name:'검수',color:'#34795e'},{name:'<script>',color:'#ff0000'}]});
- assert.deepEqual(item.event_data.tags,[{name:'검수',color:'#34795e'}]);
+ assert.deepEqual(item.event_data.tags,[{name:'검수',color:'#34795e',textColor:'#ffffff'}]);
  assert.equal(item.end_date,'2026-11-19');
 });
 test('calendar code offers manual refresh and refreshes on focus, visibility and online',()=>{

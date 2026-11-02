@@ -29,7 +29,7 @@ function normalizeEvent(value) {
       color: /^#[0-9a-fA-F]{6}$/.test(value.color || '') ? value.color : '#5367e8',
       status: ['todo','doing','done'].includes(value.status) ? value.status : 'todo',
       url:safeUrl,checklist,gameName:String(value.gameName||'').slice(0,50),
-      tags:Array.isArray(value.tags)?value.tags.slice(0,8).filter(t=>t&&/^[\p{L}\p{N}_-]{1,20}$/u.test(t.name)&&/^#[0-9a-f]{6}$/i.test(t.color)).map(t=>({name:t.name,color:t.color.toLowerCase()})):[]
+      tags:Array.isArray(value.tags)?value.tags.slice(0,8).filter(t=>t&&/^[\p{L}\p{N}_-]{1,20}$/u.test(t.name)&&/^#[0-9a-f]{6}$/i.test(t.color)).map(t=>({name:t.name,color:t.color.toLowerCase(),textColor:/^#[0-9a-f]{6}$/i.test(t.textColor||'')?t.textColor.toLowerCase():'#ffffff'})):[]
     }
   };
 }

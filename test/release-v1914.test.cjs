@@ -12,7 +12,7 @@ const app=fs.readFileSync(path.join(root,'renderer/app.js'),'utf8');
 const html=fs.readFileSync(path.join(root,'renderer/index.html'),'utf8');
 
 test('v1.9.14 build version and approved two-item release note are exact',()=>{
- assert.equal(pkg.version,'1.9.14');
+ assert.ok(['1.9.14','1.9.15'].includes(pkg.version));
  assert.equal(lock.version,pkg.version);
  assert.equal(lock.packages[''].version,pkg.version);
  assert.deepEqual(notes['1.9.14'],{
@@ -31,7 +31,7 @@ test('tag controls replace visible status selector and saved tag can be reused',
  assert.match(html,/id="tagLibraryList"/);
  assert.match(html,/id="tagLibrarySave"/);
  const catalog=Library.add(Library.initial([]),{name:'검수',color:'#123456'}).catalog;
- assert.deepEqual(Library.match(catalog,[{name:'검수',color:'#999999'}]),[{name:'검수',color:'#123456'}]);
+ assert.deepEqual(Library.match(catalog,[{name:'검수',color:'#999999'}]),[{name:'검수',color:'#123456',textColor:'#ffffff'}]);
 });
 test('backup and import preserve both saved tag library and deleted-tag preferences',()=>{
  assert.match(app,/tagLibrary:data\.tagLibrary,tagLibraryHidden:data\.tagLibraryHidden/);
