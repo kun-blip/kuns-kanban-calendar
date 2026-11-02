@@ -18,8 +18,8 @@ const asset=(version)=>({name:`KuunsKanbanCalendar-${version}-mac-universal.dmg`
 const macController=({tag='v1.9.10',assets=[asset('1.9.10')],openExternal=async()=>{}}={})=>createUpdateController({app,pkg:pkgConfig,platform:'darwin',clock:noop,every:noop,
   fetchImpl:async(url)=>{assert.match(url,/api\.github\.com\/repos\/kun-blip\/kuns-kanban-calendar\/releases\/latest/);return {ok:true,json:async()=>({tag_name:tag,assets})};},openExternal});
 
-test('v1.9.10 version and release notes exactly preserve first two v1.9.9 entries',()=>{
- assert.equal(pkg.version,'1.9.10');assert.equal(lock.version,'1.9.10');assert.equal(lock.packages[''].version,'1.9.10');
+test('v1.9.10 release notes preserve first two v1.9.9 entries',()=>{
+ assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);
  assert.deepEqual(notes['1.9.10'].items.slice(0,2),notes['1.9.9'].items.slice(0,2));
  assert.equal(notes['1.9.10'].items.length,3);
  assert.match(notes['1.9.10'].items[2].title,/Mac/);

@@ -28,7 +28,8 @@ function normalizeEvent(value) {
     event_data: {
       color: /^#[0-9a-fA-F]{6}$/.test(value.color || '') ? value.color : '#5367e8',
       status: ['todo','doing','done'].includes(value.status) ? value.status : 'todo',
-      url:safeUrl,checklist,gameName:String(value.gameName||'').slice(0,50)
+      url:safeUrl,checklist,gameName:String(value.gameName||'').slice(0,50),
+      tags:Array.isArray(value.tags)?value.tags.slice(0,8).filter(t=>t&&/^[\p{L}\p{N}_-]{1,20}$/u.test(t.name)&&/^#[0-9a-f]{6}$/i.test(t.color)).map(t=>({name:t.name,color:t.color.toLowerCase()})):[]
     }
   };
 }
@@ -59,7 +60,7 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
     if (accessToken) headers.Authorization = 'Bearer '+accessToken;
     if (body !== undefined) headers['Content-Type']='application/json';
     if (route.includes('/rest/v1/')) headers.Prefer='return=representation';
-    const response=await fetchImpl(url+route, {method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
+    const response=await fetchImpl(url+route, {method,headers,cache:'no-store',body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
     const raw=(await response.text()).slice(0,30000);
     let output; try { output=raw?JSON.parse(raw):null; } catch {output=null;}
     if(!response.ok) {

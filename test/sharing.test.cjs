@@ -11,7 +11,7 @@ const config=require('../desktop/sharing-config.json');
 test('only deliberately shared fields are included in remote payload',()=>{
  const event=normalizeEvent({id:'some-uuid-123',title:' Test Event ',start:'2026-10-24',end:'2026-10-25',description:'test memo',status:'doing',color:'#112233',checklist:[{text:'private'}],url:'https://private.example/',reminderAt:'secret'});
  assert.equal(event.title,'Test Event');assert.equal(event.local_event_id,'some-uuid-123');
- assert.deepEqual(Object.keys(event.event_data).sort(),['checklist','color','gameName','status','url']);
+ assert.deepEqual(Object.keys(event.event_data).sort(),['checklist','color','gameName','status','tags','url']);
  assert.equal(event.event_data.url,'https://private.example/');
  assert.deepEqual(event.event_data.checklist,[{text:'private',done:false}]);
 });

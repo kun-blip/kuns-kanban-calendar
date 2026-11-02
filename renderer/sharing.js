@@ -6,6 +6,7 @@
     const overlay=$('sharingOverlay'), content=$('sharingContent');
     let session={signedIn:false,email:'',userId:null}, rows=[],contacts=[],inbox=[],roles=[];
     let opened=false,selectedId=null,pending='',pendingInvite='',inFlight=false;
+    let refreshTask=null;const pendingLocalSync=new Set();
     let draft=[], details={members:[],invites:[],history:[]}, seen=new Set(),initialInbox=true;
     // Keep each section's expanded state while inbox/contact lists refresh.
     const foldOpen={legacy:false,shared:false,contacts:false};
@@ -65,13 +66,13 @@
     function ownedRow(localId){return rows.find(r=>isMine(r)&&r.local_event_id===localId);}
     function remoteRole(row){return isMine(row)?'owner':(roles.find(r=>r.event_id===row.id && r.user_id===session.userId)?.role || 'viewer');}
     function renderRemote(){
-      onOwnedUpdates?.(rows.filter(isMine));
+      onOwnedUpdates?.(rows.filter(r=>isMine(r)&&!pendingLocalSync.has(r.local_event_id)));
       onRemoteEvents(root.KuunsSharedVisibility.remoteRows(rows,getEvents(),session.userId).map(r=>({
         id:'shared:'+r.id,sharedId:r.id,remoteReadOnly:remoteRole(r)!=='editor',
         title:r.title,description:r.description||'',start:r.start_date,end:r.end_date,
         color:r.event_data?.color||'#5367e8',status:r.event_data?.status||'todo',
         completed:r.event_data?.status==='done',gameId:'',recurrence:'none',recurrenceUntil:'',
-        checklist:r.event_data?.checklist||[],url:r.event_data?.url||'',reminderAt:''
+        checklist:r.event_data?.checklist||[],tags:r.event_data?.tags||[],url:r.event_data?.url||'',reminderAt:''
       })));
     }
     function syncInviteBlueDot(){
@@ -81,6 +82,11 @@
       launch.title=count>0?`받은 일정 초대 ${count}건 · 확인 필요`:'동료와 선택한 일정 공유';
     }
     async function refresh(){
+      if(refreshTask)return refreshTask;
+      refreshTask=performRefresh().finally(()=>{refreshTask=null;});
+      return refreshTask;
+    }
+    async function performRefresh(){
       if(!session.signedIn){rows=[];inbox=[];roles=[];contacts=[];onRemoteEvents([]);syncInviteBlueDot();return;}
       // An authenticated recipient can explicitly trust a saved sender. This never auto-shares private schedules.
       await bridge.sharingAutoAcceptInvites?.().catch(()=>{});
@@ -187,9 +193,10 @@
     }
     async function saveAndInvite(event,recipients,editing){
       const current=ownedRow(event.id);
+      if(current)pendingLocalSync.add(event.id);
       if(current){
         try{await bridge.sharingPublish(event,Number(current.revision));}
-        catch(e){notify('일정은 내 PC에 저장됐지만 공유 서버 반영에 실패했어요: '+e.message);return;}
+        catch(e){notify('일정은 내 PC에 저장됐지만 공유 서버 반영에 실패했어요: '+e.message+' · 새로고침 후 다시 저장해 주세요.');return;}
       }else if(recipients?.length){
         if(event.recurrence && event.recurrence!=='none'){
           notify('반복 일정은 공유되지 않아요. 일반 일정으로 변경해 주세요.');return;
@@ -206,8 +213,11 @@
           notify(`${recipients.length}명에게 초대가 등록됐어요. 동료가 앱에서 수락하면 공유됩니다.`);
         }catch(e){notify('일정은 저장됐지만 초대 전송에 실패했어요: '+e.message);}
       }
+      // Do not let an earlier server snapshot overwrite an unsent local edit.
+      if(current){if(refreshTask)await refreshTask.catch(()=>{});pendingLocalSync.delete(event.id);}
       if(current||recipients?.length)try{await refresh();}catch(e){notify('공유 일정 갱신 실패: '+e.message);}
     }
+    function markLocalDirty(id){if(ownedRow(id))pendingLocalSync.add(id);}
     function syncEditedEvent(event){return saveAndInvite(event,[],true);}
     async function handleLocalDelete(id){
       const found=ownedRow(id);if(!found)return;
@@ -385,7 +395,7 @@
           await bridge.sharingEditShared(r.id,Number(r.revision),{
             id:'remote-edit',title:title.value,start:start.value,end:end.value,
             description:description.value,status:originalSharedStatus==='done'&&!sharedStatusChanged?'done':status.value,color:r.event_data?.color||'#5367e8',
-            url:safeUrl,checklist,gameName:r.event_data?.gameName||''
+            url:safeUrl,checklist,tags:r.event_data?.tags||[],gameName:r.event_data?.gameName||''
           });
           await refresh();await detailLoad();notify('수정된 일정이 동료에게 동기화됩니다.');
         },'btn primary');
@@ -565,12 +575,15 @@
       const inv=await bridge.sharingPendingInvite();if(inv)pendingInvite=inv;
       bridge.onSharingInvite?.(code=>{pendingInvite=code;selectedId=null;open();});
       if(pendingInvite)open();
-      window.addEventListener('focus',()=>{if(session.signedIn)void refresh().catch(()=>{});});
-      setInterval(()=>{if(session.signedIn)void refresh().catch(()=>{});},120000);
+      const passiveRefresh=()=>{if(session.signedIn&&document.visibilityState!=='hidden')void refresh().catch(()=>{});};
+      window.addEventListener('focus',passiveRefresh);
+      document.addEventListener('visibilitychange',passiveRefresh);
+      window.addEventListener('online',passiveRefresh);
+      setInterval(passiveRefresh,30000);
     }
     void initialize().catch(e=>notify('공유 기능 준비 실패: '+e.message));
     return {open,openRemote,close,refresh,getOwnedRow:ownedRow,resetDraft,draftItems,
-      renderEventPicker,saveAndInvite,syncEditedEvent,handleLocalDelete};
+      renderEventPicker,saveAndInvite,syncEditedEvent,markLocalDirty,handleLocalDelete};
   }
   root.KuunsSharing={createSharingUI};
 })(window);
