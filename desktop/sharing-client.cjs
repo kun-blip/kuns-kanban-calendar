@@ -185,10 +185,23 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
     myRoles:()=>authorized('/rest/v1/shared_event_members?select=event_id,role,user_id'),
     members:id=>authorized('/rest/v1/rpc/sharing_list_members',{method:'POST',body:{p_event_id:safeUuid(id)}}),
     role:(eventId,userId,role)=>authorized('/rest/v1/rpc/sharing_set_member_role',{method:'POST',body:{p_event_id:safeUuid(eventId),p_member_id:safeUuid(userId),p_role:validateRole(role)}}),
-    editShared:(id,revision,patch)=>{
+    editShared:async(id,revision,patch)=>{
       if(!Number.isSafeInteger(revision)||revision<1)throw new Error('일정 버전 정보가 올바르지 않습니다.');
+      const eventId=safeUuid(id);
       const record=normalizeEvent({...patch,id:'remote-edit'});
-      return authorized('/rest/v1/rpc/sharing_update_event',{method:'POST',body:{p_event_id:safeUuid(id),p_revision:revision,p_patch:recordPatch(record)}});
+      // The author and any future server-owned metadata must survive edits made by
+      // a recipient. Never trust the edited form's ownerEmail as an authority.
+      const existing=await authorized('/rest/v1/shared_events?select=id,revision,event_data&id=eq.'+encodeURIComponent(eventId));
+      if(!Array.isArray(existing)||existing.length!==1)throw new Error('공유 일정을 다시 불러올 수 없어요. 새로고침 후 다시 시도해 주세요.');
+      const previous=existing[0].event_data;
+      const preserved=previous&&typeof previous==='object'&&!Array.isArray(previous)?previous:{};
+      const merged={...preserved,...record.event_data};
+      // A user editing the schedule cannot alter or accidentally delete the original author.
+      delete merged.ownerEmail;
+      if(typeof preserved.ownerEmail==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(preserved.ownerEmail.trim())){
+        merged.ownerEmail=preserved.ownerEmail.trim().toLowerCase().slice(0,254);
+      }
+      return authorized('/rest/v1/rpc/sharing_update_event',{method:'POST',body:{p_event_id:eventId,p_revision:revision,p_patch:{...recordPatch(record),event_data:merged}}});
     },
     sentInvites:id=>authorized('/rest/v1/rpc/sharing_list_sent_invites',{method:'POST',body:{p_event_id:safeUuid(id)}}),
     cancelInvite:id=>authorized('/rest/v1/rpc/sharing_cancel_invite',{method:'POST',body:{p_invite_id:safeUuid(id)}}),
