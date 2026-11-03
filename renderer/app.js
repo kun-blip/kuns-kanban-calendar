@@ -175,7 +175,7 @@ $('clearFilters').addEventListener('click',()=>{filters={game:'all',query:''};$(
      const flag=document.createElement('span');flag.className='widget-flag';flag.style.background=e.color;
      const body=document.createElement('span');body.className='widget-item-copy';
      const title=document.createElement('strong');title.textContent=e.title;
-     const hint=document.createElement('small');hint.textContent=`${fmtDate(e.start)} ~ ${fmtDate(e.end)}${e.sharedOwnerLabel?' · 공유: '+e.sharedOwnerLabel:''}`;
+     const hint=document.createElement('small');hint.textContent=`${fmtDate(e.start)} ~ ${fmtDate(e.end)}`;
      body.append(title,hint);btn.append(flag,body);btn.addEventListener('click',()=>openEvent(e.id));list.appendChild(btn);
    }
  }
@@ -298,12 +298,12 @@ for(const weekStart of monthWeeks()){
   }
   week.appendChild(dayRow);
   const layer=document.createElement('div');layer.className='event-layer';
-  for(const s of segs){if(s.lane>=maxShown)continue;const block=document.createElement('button');block.type='button';block.className='event-block'+(compact?'':' detailed')+(s.leftContinuation?' continues-before':'')+(s.rightContinuation?' continues-after':'')+(eventStatus(s.e)==='done'?' completed':'')+' status-'+eventStatus(s.e);block.style.setProperty('--event-color',s.e.color);block.style.left=`calc(${(100*s.startIndex/7).toFixed(6)}% + 5px)`;block.style.width=`calc(${(100*(s.endIndex-s.startIndex+1)/7).toFixed(6)}% - 10px)`;block.style.top=(40+step*s.lane)+'px';block.title=`${s.e.title} (${workdayCount(s.e.start,s.e.end)}일)\n${s.e.start} ~ ${s.e.end}${s.e.sharedOwnerLabel?'\n공유한 사람: '+s.e.sharedOwnerLabel:''}${s.e.description?'\n'+s.e.description:''}`;
+  for(const s of segs){if(s.lane>=maxShown)continue;const block=document.createElement('button');block.type='button';block.className='event-block'+(compact?'':' detailed')+(s.leftContinuation?' continues-before':'')+(s.rightContinuation?' continues-after':'')+(eventStatus(s.e)==='done'?' completed':'')+' status-'+eventStatus(s.e);block.style.setProperty('--event-color',s.e.color);block.style.left=`calc(${(100*s.startIndex/7).toFixed(6)}% + 5px)`;block.style.width=`calc(${(100*(s.endIndex-s.startIndex+1)/7).toFixed(6)}% - 10px)`;block.style.top=(40+step*s.lane)+'px';block.title=`${s.e.title} (${workdayCount(s.e.start,s.e.end)}일)\n${s.e.start} ~ ${s.e.end}${s.e.description?'\n'+s.e.description:''}`;
      
      const displayTagInfo=Tags.legacyTags(s.e.title,s.e.tags);
      for(const tag of displayTagInfo.tags){const chip=document.createElement('span');chip.className='timeline-tag';chip.textContent=tag.name;chip.style.setProperty('--tag-color',tag.color);chip.style.setProperty('--tag-text-color',tag.textColor||'#ffffff');block.appendChild(chip);}
      const dot=document.createElement('span');dot.className='event-status-dot';dot.setAttribute('aria-hidden','true');block.appendChild(dot);
-     const g=gameById(s.e.gameId);const src=gameIcon(g);if(src){const pic=document.createElement('img');pic.className='event-game-icon';pic.src=src;pic.alt='';pic.setAttribute('aria-hidden','true');block.appendChild(pic);} const name=document.createElement('span');name.className='event-label';name.textContent=displayTagInfo.title||s.e.title;block.appendChild(name);if(s.e.sharedOwnerEmail){const by=document.createElement('span');by.className='event-shared-owner';by.textContent='공유: '+(s.e.sharedOwnerLabel||s.e.sharedOwnerEmail.split('@')[0]);by.title='공유한 사람: '+s.e.sharedOwnerEmail;block.appendChild(by);}const duration=workdayCount(s.e.start,s.e.end);if(duration>1){const days=document.createElement('span');days.className='event-duration';days.textContent=`(${duration}일)`;block.appendChild(days);}if(s.e.checklist?.length){const progress=document.createElement('span');progress.className='event-check-progress';progress.textContent=s.e.checklist.filter(c=>c.done).length+'/'+s.e.checklist.length;progress.title='작업 체크리스트 진행률';block.appendChild(progress);}
+     const g=gameById(s.e.gameId);const src=gameIcon(g);if(src){const pic=document.createElement('img');pic.className='event-game-icon';pic.src=src;pic.alt='';pic.setAttribute('aria-hidden','true');block.appendChild(pic);} const name=document.createElement('span');name.className='event-label';name.textContent=displayTagInfo.title||s.e.title;block.appendChild(name);const duration=workdayCount(s.e.start,s.e.end);if(duration>1){const days=document.createElement('span');days.className='event-duration';days.textContent=`(${duration}일)`;block.appendChild(days);}if(s.e.checklist?.length){const progress=document.createElement('span');progress.className='event-check-progress';progress.textContent=s.e.checklist.filter(c=>c.done).length+'/'+s.e.checklist.length;progress.title='작업 체크리스트 진행률';block.appendChild(progress);}
      if(s.e.url){const g=document.createElement('span');g.className='link-glyph';g.textContent='↗';block.appendChild(g);}
      block.addEventListener('click',()=>{if(Date.now()-lastDragAt<400)return;openEvent(s.e.id);});
      block.addEventListener('contextmenu',ev=>{ev.preventDefault();showTimelineMenu(ev,s.e);});
@@ -328,7 +328,7 @@ for(const weekStart of monthWeeks()){
   const list=$('dayEventList');list.replaceChildren();
   for(const e of events){const b=document.createElement('button');b.type='button';b.className='day-event';const dot=document.createElement('i');dot.style.background=e.color;
    const title=document.createElement('strong');title.textContent=e.title;
-   const status=document.createElement('small');status.textContent=e.sharedOwnerLabel?'공유한 사람: '+e.sharedOwnerLabel:(e.recurrence&&e.recurrence!=='none'?'반복 일정':'');
+   const status=document.createElement('small');status.textContent=e.recurrence&&e.recurrence!=='none'?'반복 일정':'';
    b.append(dot,title,status);b.addEventListener('click',()=>openEvent(e.id));list.appendChild(b);}
   if(!events.length){const p=document.createElement('span');p.className='empty-day';p.textContent='등록된 일정이 없습니다.';list.appendChild(p);}
  }

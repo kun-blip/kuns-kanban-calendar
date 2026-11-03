@@ -10,7 +10,7 @@ const catalog=require('../desktop/release-notes.json');
 const source=rel=>fs.readFileSync(path.join(root,rel),'utf8');
 
 test('v1.9.13 package, lock, and approved release notes match',()=>{
- assert.ok(['1.9.13','1.9.14','1.9.15','1.9.16','1.9.17'].includes(pkg.version));
+ assert.ok(['1.9.13','1.9.14','1.9.15','1.9.16','1.9.17','1.9.18'].includes(pkg.version));
  assert.equal(lock.version,pkg.version);
  assert.equal(lock.packages[''].version,pkg.version);
  assert.deepEqual(catalog['1.9.13'],{

@@ -73,7 +73,7 @@ test('legacy state labels and filtering are absent from user-facing UI',()=>{
  assert.doesNotMatch(app,/STATUS_NAMES/);
  assert.doesNotMatch(share,/\['todo','소프트런칭'\]/);
  assert.doesNotMatch(share,/line\(section,'h4','상태'/);
- assert.match(app,/sharedOwnerLabel/);
+ assert.match(share,/공유한 사람:/);
  assert.match(share,/loadOwnerInvitationHistory/);
  assert.match(share,/sharingMembers\(row.id\)/);
  assert.match(share,/sharingSentInvites\(row.id\)/);
