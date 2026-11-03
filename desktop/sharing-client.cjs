@@ -1,5 +1,7 @@
 'use strict';
 const fs = require('node:fs');
+const crypto = require('node:crypto');
+const Sticker = require('./sticker-utils.cjs');
 
 function validateEmail(email) {
   const value = String(email || '').trim().toLowerCase();
@@ -97,9 +99,77 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
     })();
     try{return await renewing;}finally{renewing=null;}
   }
+  async function stickerBinary(route,{method='GET',bytes=null,mime=null}={}) {
+    if(!session?.access_token)throw new Error('스티커를 사용하려면 먼저 로그인해 주세요.');
+    if((Number(session.expires_at)||0)<Date.now()/1000+60)await refresh();
+    const perform=()=>fetchImpl(url+route,{
+      method,headers:{apikey:publishableKey,Authorization:'Bearer '+session.access_token,...(mime?{'Content-Type':mime}:{})},
+      ...(bytes?{body:bytes}:{}),cache:'no-store',signal:AbortSignal.timeout(20000)
+    });
+    let response=await perform();
+    if(response.status===401){await refresh();response=await perform();}
+    if(!response.ok)throw new Error('스티커 파일을 전송하거나 불러오지 못했어요. ('+response.status+')');
+    if(method==='GET'){
+      const size=Number(response.headers?.get?.('content-length')||0);
+      if(size>Sticker.MAX_STICKER_BYTES)throw new Error('스티커 파일 크기가 너무 큽니다.');
+      const image=Buffer.from(await response.arrayBuffer());
+      if(image.length>Sticker.MAX_STICKER_BYTES)throw new Error('스티커 파일 크기가 너무 큽니다.');
+      return image;
+    }
+    return true;
+  }
+  async function stickerList(){const result=await authorized('/rest/v1/team_stickers?select=id,uploader_id,uploader_email,name,image_path,mime_type,created_at&order=created_at.desc&limit=150');return Array.isArray(result)?result:[];}
+  async function stickerImage(id){
+    const list=await authorized('/rest/v1/team_stickers?select=image_path,mime_type&id=eq.'+Sticker.uuid(id)+'&limit=1');
+    if(!Array.isArray(list)||list.length!==1)throw new Error('스티커를 찾을 수 없어요.');
+    const path=Sticker.imagePath(list[0].image_path),mime=list[0].mime_type;
+    if(!['image/png','image/webp','image/gif'].includes(mime))throw new Error('허용되지 않은 이미지 형식입니다.');
+    const bytes=await stickerBinary('/storage/v1/object/authenticated/team-calendar-stickers/'+path.split('/').map(encodeURIComponent).join('/'));
+    const validated=Sticker.file('data:'+mime+';base64,'+bytes.toString('base64'));
+    return 'data:'+validated.mime+';base64,'+bytes.toString('base64');
+  }
+  async function stickerUpload(label,dataUrl){
+    const title=Sticker.name(label),file=Sticker.file(dataUrl);
+    const uid=session?.user?.id;if(!uid)throw new Error('스티커 업로드는 로그인이 필요해요.');
+    const path=Sticker.imagePath(uid+'/'+crypto.randomUUID()+file.ext);
+    await stickerBinary('/storage/v1/object/team-calendar-stickers/'+path.split('/').map(encodeURIComponent).join('/'),{method:'POST',bytes:file.bytes,mime:file.mime});
+    try{
+      const result=await authorized('/rest/v1/team_stickers',{method:'POST',body:{uploader_id:uid,name:title,image_path:path,mime_type:file.mime}});
+      if(!Array.isArray(result)||!result[0]?.id)throw new Error('스티커 등록에 실패했어요.');
+      return result[0];
+    }catch(e){try{await stickerBinary('/storage/v1/object/team-calendar-stickers/'+path,{method:'DELETE'});}catch{}throw e;}
+  }
+  async function stickerDelete(id){
+    const stickerId=Sticker.uuid(id),result=await authorized('/rest/v1/team_stickers?select=image_path,uploader_id&id=eq.'+stickerId);
+    const uid=session?.user?.id;
+    if(!result?.length||result[0].uploader_id!==uid)throw new Error('내가 올린 스티커만 삭제할 수 있어요.');
+    await authorized('/rest/v1/team_stickers?id=eq.'+stickerId,{method:'DELETE'});
+    try{await stickerBinary('/storage/v1/object/team-calendar-stickers/'+Sticker.imagePath(result[0].image_path),{method:'DELETE'});}catch{}
+    return {ok:true};
+  }
+  async function stickerMarks({start,end,eventId}={}){
+    let filter='';
+    if(eventId)filter='target_kind=eq.event&shared_event_id=eq.'+Sticker.uuid(eventId);
+    else filter='target_kind=eq.date&target_date=gte.'+Sticker.day(start)+'&target_date=lte.'+Sticker.day(end);
+    const result=await authorized('/rest/v1/team_sticker_marks?select=id,sticker_id,actor_id,actor_email,target_kind,target_date,shared_event_id,created_at&'+filter+'&order=created_at.asc&limit=500');
+    return Array.isArray(result)?result:[];
+  }
+  async function stickerPlace(stickerId,{date,eventId}={}){
+    const uid=session?.user?.id;if(!uid)throw new Error('로그인 후 스티커를 붙일 수 있어요.');
+    const body={sticker_id:Sticker.uuid(stickerId),actor_id:uid};
+    if(eventId){body.target_kind='event';body.shared_event_id=Sticker.uuid(eventId);}
+    else{body.target_kind='date';body.target_date=Sticker.day(date);}
+    const result=await authorized('/rest/v1/team_sticker_marks',{method:'POST',body});
+    return result?.[0]||null;
+  }
+  async function stickerUnplace(markId){
+    await authorized('/rest/v1/team_sticker_marks?id=eq.'+Sticker.uuid(markId),{method:'DELETE'});
+    return {ok:true};
+  }
   function publicStatus(){return {signedIn:!!session?.access_token,email:session?.user?.email || session?.email || '',userId:session?.user?.id || null};}
   return {
     publicStatus,
+    stickerList,stickerImage,stickerUpload,stickerDelete,stickerMarks,stickerPlace,stickerUnplace,
     requestOtp: async email => {
       email=validateEmail(email);
       await request('/auth/v1/otp',{method:'POST',body:{email,create_user:true}});

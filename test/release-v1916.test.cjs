@@ -10,7 +10,7 @@ const html=fs.readFileSync(path.join(__dirname,'../renderer/index.html'),'utf8')
 const share=fs.readFileSync(path.join(__dirname,'../renderer/sharing.js'),'utf8');
 const app=fs.readFileSync(path.join(__dirname,'../renderer/app.js'),'utf8');
 test('v1.9.16 build and lock versions are aligned',()=>{
- assert.ok(['1.9.16','1.9.17','1.9.18'].includes(pkg.version));assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);
+ assert.ok(['1.9.16','1.9.17','1.9.18','1.9.19'].includes(pkg.version));assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);
 });
 test('v1.9.16 approved three patch notes are exact and prior notes retained',()=>{
  assert.deepEqual(notes['1.9.16'],{

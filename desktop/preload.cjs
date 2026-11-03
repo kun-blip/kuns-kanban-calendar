@@ -3,6 +3,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('kuunsDesktop', Object.freeze({
   platform: process.platform,
   sharingStatus:()=>ipcRenderer.invoke('sharing:status'),
+  stickerList:()=>ipcRenderer.invoke('sharing:stickerList'),
+  stickerImage:id=>ipcRenderer.invoke('sharing:stickerImage',id),
+  stickerUpload:(name,dataUrl)=>ipcRenderer.invoke('sharing:stickerUpload',name,dataUrl),
+  stickerDelete:id=>ipcRenderer.invoke('sharing:stickerDelete',id),
+  stickerMarks:query=>ipcRenderer.invoke('sharing:stickerMarks',query),
+  stickerPlace:(id,options)=>ipcRenderer.invoke('sharing:stickerPlace',id,options),
+  stickerUnplace:id=>ipcRenderer.invoke('sharing:stickerUnplace',id),
   sharingRequestOtp:email=>ipcRenderer.invoke('sharing:requestOtp',email),
   sharingVerifyOtp:(email,code)=>ipcRenderer.invoke('sharing:verifyOtp',email,code),
   sharingSignOut:()=>ipcRenderer.invoke('sharing:signOut'),

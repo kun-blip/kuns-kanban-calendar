@@ -10,7 +10,7 @@ const root=path.resolve(__dirname,'..');
 const content=name=>fs.readFileSync(path.join(root,name),'utf8');
 
 test('v1.9.11 package and lock versions agree and approved release notes are exact',()=>{
- assert.ok(['1.9.11','1.9.12','1.9.13','1.9.14','1.9.15','1.9.16','1.9.17','1.9.18'].includes(pkg.version)); // Verify historical notes after future releases
+ assert.ok(['1.9.11','1.9.12','1.9.13','1.9.14','1.9.15','1.9.16','1.9.17','1.9.18','1.9.19'].includes(pkg.version)); // Verify historical notes after future releases
  assert.equal(lock.version,pkg.version);
  assert.equal(lock.packages[''].version,pkg.version);
  assert.deepEqual(notes['1.9.11'],{

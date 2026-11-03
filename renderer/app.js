@@ -92,6 +92,7 @@ function monthWeeks(){if(data.calendarMode==='week')return [parseKey(Planner.wee
 let filters={game:'all',query:''};
 let sharedRemoteEvents=[];
 let sharing=null;
+let stickersUI=null;
 function allVisibleEvents(){return data.events.concat(sharedRemoteEvents);}
 function matchingEvents(){
   const term=filters.query.trim().toLocaleLowerCase();
@@ -294,6 +295,7 @@ for(const weekStart of monthWeeks()){
     const d=dateAdd(weekStart,day),key=toDateKey(d);const cell=document.createElement('div');cell.className='date-cell';cell.dataset.date=key;if(d.getMonth()!==month.getMonth())cell.classList.add('other-month');if(key===todayKey)cell.classList.add('is-today');if(key===selectedDate)cell.classList.add('selected-date');if(d.getDay()===0)cell.classList.add('sunday');if(d.getDay()===6)cell.classList.add('saturday');
     const number=document.createElement('button');number.className='date-btn';number.textContent=String(d.getDate());number.setAttribute('aria-label',`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 작업 보기`);number.addEventListener('click',()=>{if(Date.now()<suppressCalendarClickUntil)return;selectDate(key);openEvent(null,key);});const hit=document.createElement('button');hit.className='day-hit';hit.tabIndex=-1;hit.setAttribute('aria-label',`${key} 날짜 클릭`);hit.addEventListener('click',()=>{if(Date.now()<suppressCalendarClickUntil)return;selectDate(key);openEvent(null,key);});installRangeSelection(number);installRangeSelection(hit);cell.append(number,hit);
     if(compact){const hiddenCount=segs.filter(s=>s.lane>=maxShown&&s.startIndex<=day&&s.endIndex>=day).length;if(hiddenCount){const more=document.createElement('button');more.className='more-count';more.textContent=`+${hiddenCount}개 더`;more.title='자세히 보기';more.addEventListener('click',()=>{data.view='detail';save();renderCalendar();});cell.appendChild(more);}}
+    if(stickersUI)stickersUI.renderDate(cell,key);
     dayRow.appendChild(cell);
   }
   week.appendChild(dayRow);
@@ -318,6 +320,7 @@ for(const weekStart of monthWeeks()){
     week.appendChild(layer);calendar.appendChild(week);
  }
  renderDayPanel();
+ if(stickersUI)void stickersUI.refreshDates(mStart,mEnd);
  }
  let lastDragAt=0;const dragUndo=[];function clearDragUndo(){dragUndo.length=0;$('undoTimeline').disabled=true;}
  function selectDate(key){selectedDate=key;month=new Date(parseKey(key).getFullYear(),parseKey(key).getMonth(),1);renderCalendar();}
@@ -886,6 +889,10 @@ window.addEventListener('pointerdown',event=>{
 
 
 // v1.9.0: encrypted transport through the Electron main process; never upload private calendar data automatically.
+if(DESKTOP?.stickerList && window.KuunsStickers){
+  stickersUI=window.KuunsStickers.createStickerUI({bridge:DESKTOP,notify,onCalendarUpdate:()=>renderCalendar()});
+  void stickersUI.initialize().then(()=>renderCalendar());
+}else if($('stickerLaunch'))$('stickerLaunch').hidden=true;
 if(DESKTOP?.sharingStatus){
   sharing=window.KuunsSharing.createSharingUI({bridge:DESKTOP,
     getEvent:id=>data.events.find(e=>e.id===id),getEvents:()=>data.events,
@@ -905,6 +912,7 @@ if(DESKTOP?.sharingStatus){
       $('saveState').textContent='이 PC의 앱 데이터 폴더에 자동 저장됨';
     },
     onRemoteEvents:items=>{sharedRemoteEvents=items;renderCalendar();renderWidget();},
+    stickers:stickersUI,
     onOwnedUpdates:items=>{
       // Shared fields come from the server; leave private-only fields unchanged.
       let changed=false;
