@@ -411,6 +411,14 @@ html[data-theme=dark] .widget-todo-edit,html[data-theme=dark] .widget-todo-save,
 
 .share-contact-settings{display:flex;flex-wrap:wrap;gap:8px;margin-top:7px}.share-setting{display:flex;align-items:center;gap:5px;font-size:11px;color:#687a91}.share-setting input{accent-color:#5566ef}.share-description{white-space:pre-wrap;overflow-wrap:anywhere}
 </style>
+
+<style>
+/* vNext: identify remote schedule creators without bringing back retired status chips. */
+.event-shared-owner{display:inline-block;font-size:10px;line-height:1.3;opacity:.82;flex-shrink:0;max-width:115px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.share-existing-invites{display:grid;gap:8px;margin-top:12px;border-top:1px solid var(--line,#dde2ed);padding-top:12px}
+.share-existing-invites .share-list-item{gap:10px}
+.share-invite-role{font-size:12px;color:var(--muted,#748398);white-space:nowrap}
+</style>
 </head>
 <body>
 <div class="app">
@@ -428,7 +436,6 @@ html[data-theme=dark] .widget-todo-edit,html[data-theme=dark] .widget-todo-save,
     <div class="cal-head"><div><div class="calendar-title"><div class="month-controls"><button class="btn icon-only ghost" id="prevMonth" aria-label="이전 달"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><h1 class="main-heading" id="monthLabel">2026년 10월</h1><button class="btn icon-only ghost" id="nextMonth" aria-label="다음 달"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button></div><button class="btn sm today-btn" id="todayBtn">오늘</button><button class="btn sm" id="refreshCalendarBtn" type="button" title="공유 일정을 지금 다시 동기화">↻ 새로고침</button></div><div class="cal-sub" id="monthSummary">날짜를 선택해 일정을 등록하세요</div></div><div class="calendar-tools"><label class="week-start-control" for="weekStartSelect">주 시작 <select id="weekStartSelect" aria-label="일주일의 시작 요일 선택"><option value="0">일요일</option><option value="1">월요일</option></select></label><div class="segmented" role="group" aria-label="월간 또는 주간 보기"><button id="monthMode" class="selected" type="button">월간</button><button id="weekMode" type="button">주간</button></div><button id="undoTimeline" class="btn sm" type="button" disabled title="최근 드래그 변경 취소 (Ctrl+Z)">↶ 실행 취소</button><div class="segmented" role="group" aria-label="캘린더 보기 형식"><button data-view="compact" class="selected" id="compactBtn">간략히 보기</button><button data-view="detail" id="detailBtn">자세히 보기</button></div><button class="btn primary" id="addEventBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>새 일정</button></div></div>
     <div class="calendar-filters" role="search" aria-label="일정 필터와 검색">
       <div class="filter-select-group"><label for="filterGame">게임</label><select id="filterGame" aria-label="게임 타이틀로 필터"><option value="all">전체 게임</option></select></div>
-      <div class="filter-select-group"><label for="filterStatus">상태</label><select id="filterStatus" aria-label="상태로 필터"><option value="all">전체 상태</option><option value="todo">소프트런칭</option><option value="doing">라이브</option></select></div>
       <label class="filter-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.7" cy="10.7" r="6.8"/><path d="m16 16 5 5"/></svg><input type="search" id="filterSearch" maxlength="120" placeholder="제목 · 메모 · 게임 검색" aria-label="일정 검색"/></label>
       <button type="button" id="clearFilters" class="btn sm filter-reset" title="검색과 필터 초기화">초기화</button>
     </div>
@@ -712,6 +719,7 @@ html[data-theme=dark] .tag-library-edit{color:#eaf0fa}
 <script src="./quick-links.js"></script>
 <script src="./todos.js"></script>
 <script src="./shared-visibility.js"></script>
+<script src="./shared-event-meta.js"></script>
 <script src="./sharing.js"></script>
 <script src="./app.js"></script>
 <script src="./welcome.js"></script>

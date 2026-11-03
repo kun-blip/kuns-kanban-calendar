@@ -12,7 +12,7 @@ const pkg=require('../package.json');
 const lock=require('../package-lock.json');
 
 test('version and lockfile aligned after v1.9.9',()=>{
- assert.match(pkg.version,/^1\.9\.(?:9|10|11|12|13|14|15)$/);assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);
+ assert.match(pkg.version,/^1\.9\.(?:9|10|11|12|13|14|15|16)$/);assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);
 });
 test('v1.9.9 patch note wording stays exactly identical to v1.9.8',()=>{
  assert.deepEqual(catalog['1.9.9'],catalog['1.9.8']);
@@ -22,15 +22,14 @@ test('old status values remain readable, while editor uses the tag library',()=>
  assert.match(html,/id="eventStatus" value="todo"/);
  assert.doesNotMatch(html,/id="eventStatus" class="status-select"/);
  assert.match(html,/id="tagLibraryField"/);
- const filter=html.match(/<select id="filterStatus"[^>]*>([\s\S]*?)<\/select>/)?.[1];
- assert.ok(filter);
- assert.match(app,/const STATUS_NAMES=\{todo:'소프트런칭',doing:'라이브',done:'완료'\}/);
+ assert.doesNotMatch(html,/id="filterStatus"/);
+ assert.doesNotMatch(app,/STATUS_NAMES/);
 });
 test('old completed records remain untouched until user explicitly switches status',()=>{
  assert.match(app,/originalEvent&&eventStatus\(originalEvent\)==='done'&&!editingStatusChanged\?'done'/);
  assert.match(app,/completed:chosenStatus==='done',status:chosenStatus/);
- assert.match(sharing,/originalSharedStatus==='done'&&!sharedStatusChanged\?'done':status.value/);
- assert.match(sharing,/for\(const \[v,label\] of \[\['todo','소프트런칭'\],\['doing','라이브'\]\]\)/);
+ assert.match(sharing,/status:originalSharedStatus/);
+ assert.doesNotMatch(sharing,/sharedStatusChanged/);
 });
 test('event details and share accordion arrows use geometric chevrons centered in both states',()=>{
  for(const stem of ['event-fold-summary','share-fold-summary']){

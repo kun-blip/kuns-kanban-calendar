@@ -12,7 +12,7 @@ const app=fs.readFileSync(path.join(root,'renderer/app.js'),'utf8');
 const html=fs.readFileSync(path.join(root,'renderer/index.html'),'utf8');
 
 test('v1.9.14 build version and approved two-item release note are exact',()=>{
- assert.ok(['1.9.14','1.9.15'].includes(pkg.version));
+ assert.ok(['1.9.14','1.9.15','1.9.16'].includes(pkg.version));
  assert.equal(lock.version,pkg.version);
  assert.equal(lock.packages[''].version,pkg.version);
  assert.deepEqual(notes['1.9.14'],{

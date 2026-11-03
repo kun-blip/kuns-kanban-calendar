@@ -20,11 +20,16 @@
   }return result;
  }
  function initial(events){
-   const tags=[{name:'소프트런칭',color:'#34795e'},{name:'라이브',color:'#168ab8'}];
+   const tags=[]; // Older status labels are not new-tag defaults; keep any genuine event tags.
    for(const event of Array.isArray(events)?events:[]){
      for(const tag of Array.isArray(event?.tags)?event.tags:[])tags.push(tag);
    }
    return clean(tags);
+ }
+ function withoutUnusedLegacyPresets(list,events){
+   const used=new Set((Array.isArray(events)?events:[]).flatMap(event=>(Array.isArray(event?.tags)?event.tags:[]).map(tag=>tag.name)));
+   const presets=new Map([['소프트런칭','#34795e'],['라이브','#168ab8']]);
+   return clean(list).filter(tag=>used.has(tag.name)||presets.get(tag.name)!==tag.color||tag.textColor!==DEFAULT_TEXT_COLOR);
  }
  function add(list,tag){
    const catalog=clean(list),name=normalizeName(tag?.name);
@@ -67,5 +72,5 @@
    }return changed;
  }
  function remove(list,name){return clean(list).filter(tag=>tag.name!==name);}
- return {clean,initial,add,remember,match,update,applyUpdate,remove,normalizeName};
+ return {clean,initial,withoutUnusedLegacyPresets,add,remember,match,update,applyUpdate,remove,normalizeName};
 });

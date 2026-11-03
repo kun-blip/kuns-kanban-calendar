@@ -38,7 +38,7 @@ function sharingHarness(){
   sharingSignOut:async()=>({signedIn:false}),
   onSharingInvite:()=>{},
  };
- const window={addEventListener:()=>{},KuunsSharedVisibility:{remoteRows:()=>[],deleteOwnedEvent:async()=>{}}};
+ const window={addEventListener:()=>{},KuunsSharedEventMeta:require('../renderer/shared-event-meta.js'),KuunsSharedVisibility:{remoteRows:()=>[],deleteOwnedEvent:async()=>{}}};
  vm.runInNewContext(sharing,{window,document,confirm:()=>true,setInterval:()=>0,console});
  const ui=window.KuunsSharing.createSharingUI({bridge,getEvent:()=>null,getEvents:()=>[],onRemoteEvents:()=>{},onOwnedUpdates:()=>{},notify:msg=>notices.push(msg)});
  return {ui,host,contacts,changes,notices};
@@ -87,7 +87,7 @@ test('event editor collapses optional fields and preserves form IDs and label va
  assert.match(html,/id="tagLibraryField"/);
  assert.match(html,/id="tagLibraryList"/);
  assert.match(html,/id="eventStatus" value="todo"/);
- assert.match(app,/const STATUS_NAMES=\{todo:'소프트런칭',doing:'라이브',done:'완료'\}/);
+ assert.doesNotMatch(app,/STATUS_NAMES/);
  assert.match(app,/\$\('eventChecklistFold'\)\.open=false;\$\('eventMemoFold'\)\.open=false/);
  assert.match(app,/\$\('eventMemoPreview'\)\.textContent=value/);
 });

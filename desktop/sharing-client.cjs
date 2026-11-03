@@ -29,6 +29,7 @@ function normalizeEvent(value) {
       color: /^#[0-9a-fA-F]{6}$/.test(value.color || '') ? value.color : '#5367e8',
       status: ['todo','doing','done'].includes(value.status) ? value.status : 'todo',
       url:safeUrl,checklist,gameName:String(value.gameName||'').slice(0,50),
+      ...(typeof value.ownerEmail==='string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.ownerEmail.trim()) ? {ownerEmail:value.ownerEmail.trim().toLowerCase().slice(0,254)} : {}),
       tags:Array.isArray(value.tags)?value.tags.slice(0,8).filter(t=>t&&/^[\p{L}\p{N}_-]{1,20}$/u.test(t.name)&&/^#[0-9a-f]{6}$/i.test(t.color)).map(t=>({name:t.name,color:t.color.toLowerCase(),textColor:/^#[0-9a-f]{6}$/i.test(t.textColor||'')?t.textColor.toLowerCase():'#ffffff'})):[]
     }
   };
@@ -119,6 +120,8 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
     },
     publish:async (event,expectedRevision=null)=>{
       const record=normalizeEvent(event);
+      const userEmail=session?.user?.email || session?.email || '';
+      if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail))record.event_data.ownerEmail=userEmail.trim().toLowerCase().slice(0,254);
       const userId=session?.user?.id;
       if(!userId)throw new Error('먼저 이메일 인증을 해주세요.');
       const filter='owner_id=eq.'+encodeURIComponent(userId)+'&local_event_id=eq.'+encodeURIComponent(record.local_event_id);

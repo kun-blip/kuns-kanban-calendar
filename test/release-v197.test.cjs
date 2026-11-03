@@ -19,7 +19,7 @@ class Element {
  all(predicate){return [...(predicate(this)?[this]:[]),...this.children.flatMap(n=>n.all(predicate))];}
 }
 const tick=()=>new Promise(r=>setImmediate(r));
-function harness({owned=false}={}){
+function harness({owned=false,existingMembers=[],existingInvites=[]}={}){
  const members=[
   {id:'a',nickname:'솔로안',email:'a@example.com',group_name:'소재팀',auto_invite:false},
   {id:'b',nickname:'핑핑',email:'b@example.com',group_name:'소재팀',auto_invite:false},
@@ -30,9 +30,9 @@ function harness({owned=false}={}){
  const document={createElement:t=>new Element(t),getElementById:id=>ids[id]};
  const ownedRow={id:'11111111-2222-3333-4444-555555555555',owner_id:'mine',local_event_id:'original',title:'원본 일정',start_date:'2026-10-29',end_date:'2026-10-29',revision:1,event_data:{}};
  const sent=[];
- const bridge={sharingStatus:async()=>({signedIn:true,email:'me@example.com',userId:'mine'}),sharingAutoAcceptInvites:async()=>0,sharingList:async()=>owned?[ownedRow]:[],sharingContactsList:async()=>members,sharingInbox:async()=>[],sharingMyRoles:async()=>[],sharingPendingInvite:async()=>'',sharingHistory:async()=>[],sharingMembers:async()=>[],sharingSentInvites:async()=>[],sharingInviteContacts:async(...args)=>{sent.push(args);},onSharingInvite:()=>{}};
+ const bridge={sharingStatus:async()=>({signedIn:true,email:'me@example.com',userId:'mine'}),sharingAutoAcceptInvites:async()=>0,sharingList:async()=>owned?[ownedRow]:[],sharingContactsList:async()=>members,sharingInbox:async()=>[],sharingMyRoles:async()=>[],sharingPendingInvite:async()=>'',sharingHistory:async()=>[],sharingMembers:async()=>existingMembers,sharingSentInvites:async()=>existingInvites,sharingInviteContacts:async(...args)=>{sent.push(args);},onSharingInvite:()=>{}};
  const notices=[];
- const window={addEventListener:()=>{},KuunsSharedVisibility:{remoteRows:()=>[]}};
+ const window={addEventListener:()=>{},KuunsSharedEventMeta:require('../renderer/shared-event-meta.js'),KuunsSharedVisibility:{remoteRows:()=>[]}};
  vm.runInNewContext(js,{document,window,confirm:()=>true,setInterval:()=>0,console});
  const ui=window.KuunsSharing.createSharingUI({bridge,getEvent:()=>null,getEvents:()=>[],onRemoteEvents:()=>{},notify:t=>notices.push(t)});
  return {ui,ids,members,notices,sent,ownedRow};
@@ -119,4 +119,24 @@ test('adding a second group preserves the first, rather than replacing it',async
  const invitees=h.ui.draftItems();
  assert.equal(invitees.length,4);
  assert.equal(new Set(invitees.map(x=>x.email)).size,4);
+});
+
+test('reopening an owned event hydrates existing member roles and pending invitations without re-inviting',async()=>{
+ const h=harness({owned:true,existingMembers:[{user_id:'user-a',email:'a@example.com',role:'editor'}],
+   existingInvites:[{id:'invite-a',invited_email:'a@example.com',role:'editor',status:'accepted'},
+     {id:'invite-b',invited_email:'b@example.com',role:'viewer',status:'pending'}]});
+ await tick();await tick();
+ h.ui.resetDraft(false,'original');await tick();await tick();
+ const host=h.ids.eventCollabPicker;
+ const existing=host.all(el=>el.className==='share-existing-invites')[0];
+ assert(existing,'Existing recipients must be visible in the event editor');
+ assert(byText(existing,'strong','a@example.com'));
+ assert(byText(existing,'strong','b@example.com'));
+ assert.equal(existing.all(el=>el.tagName==='select'&&el.className.includes('share-role')).length,1);
+ assert(existing.all(el=>el.tagName==='span'&&el.textContent==='보기만').length>0);
+ assert.equal(existing.all(el=>el.className==='share-list-item').length,2,'accepted invite should not duplicate active member');
+ assert.equal(h.ui.draftItems().length,0,'existing recipients must not be re-invited on save');
+ h.ui.resetDraft(false,'original');await tick();await tick();
+ assert(byText(h.ids.eventCollabPicker,'strong','a@example.com'));
+ assert(byText(h.ids.eventCollabPicker,'strong','b@example.com'));
 });

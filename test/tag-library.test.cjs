@@ -10,7 +10,7 @@ const read=(p)=>fs.readFileSync(path.join(root,p),'utf8');
 test('old event tags migrate into reusable saved catalog on first launch',()=>{
  const events=[{tags:[{name:'검수',color:'#234567'},{name:'외주',color:'#aa22cc'}]},{tags:[{name:'검수',color:'#112233'}]}];
  const catalog=Library.initial(events);
- assert.deepEqual(catalog.map(t=>t.name),['소프트런칭','라이브','검수','외주']);
+ assert.deepEqual(catalog.map(t=>t.name),['검수','외주']);
  assert.equal(catalog.find(t=>t.name==='검수').color,'#234567');
 });
 
