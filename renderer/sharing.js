@@ -1,7 +1,7 @@
 'use strict';
 /* v1.9.1 collaboration: only explicitly shared events leave the local PC. */
 (function(root){
-  function createSharingUI({bridge,getEvent,getEvents,onRemoteEvents,onOwnedUpdates,onDeleteOwnedEvent,notify,stickers}){
+  function createSharingUI({bridge,getEvent,getEvents,onRemoteEvents,onOwnedUpdates,onDeleteOwnedEvent,notify}){
     const $=id=>document.getElementById(id);
     const overlay=$('sharingOverlay'), content=$('sharingContent');
     let session={signedIn:false,email:'',userId:null}, rows=[],contacts=[],inbox=[],roles=[];
@@ -416,7 +416,6 @@
       line(section,'h3',r.title,'share-heading');
       hint(section,`${r.start_date} ~ ${r.end_date} · ${isMine(r)?'작성자':editable?'편집 가능':'읽기 전용'} · 수정 버전 ${r.revision||1}`);
       hint(section,'공유한 사람: '+ownerDisplay(r));
-      stickers?.attachEventReactions(section,r.id);
       if(r.event_data?.gameName)line(section,'p','게임 타이틀: '+r.event_data.gameName,'share-hint');
       if(!editable){
         line(section,'h4','자세한 메모','share-heading');
@@ -582,13 +581,13 @@
           hint(content,pending+'으로 보낸 인증번호를 입력하세요.');
           const code=field(content,'6자리 인증번호');code.inputMode='numeric';code.maxLength=8;
           btn(content,'로그인',async()=>{
-            session=await bridge.sharingVerifyOtp(pending,code.value);pending='';stickers?.onAuthChanged?.();await refresh();render();notify('로그인이 완료됐어요.');
+            session=await bridge.sharingVerifyOtp(pending,code.value);pending='';await refresh();render();notify('로그인이 완료됐어요.');
           },'btn primary');
         }
         return;
       }
       const account=line(content,'div','로그인: '+session.email,'share-account');
-      btn(account,'로그아웃',async()=>{session=await bridge.sharingSignOut();rows=[];inbox=[];contacts=[];syncInviteBlueDot();stickers?.onAuthChanged?.();onRemoteEvents([]);render();renderEventPicker();});
+      btn(account,'로그아웃',async()=>{session=await bridge.sharingSignOut();rows=[];inbox=[];contacts=[];syncInviteBlueDot();onRemoteEvents([]);render();renderEventPicker();});
       const r=selectedRow();
       if(r){
         btn(content,'← 초대함 및 연락처 보기',()=>{selectedId=null;render();});

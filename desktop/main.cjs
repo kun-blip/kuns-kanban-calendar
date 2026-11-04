@@ -307,13 +307,6 @@ function registerIpc() {
     return fn(...args);
   });
   shareHandle('status',()=>sharingClient.publicStatus());
-  shareHandle('stickerList',()=>sharingClient.stickerList());
-  shareHandle('stickerImage',id=>sharingClient.stickerImage(id));
-  shareHandle('stickerUpload',(name,dataUrl)=>sharingClient.stickerUpload(name,dataUrl));
-  shareHandle('stickerDelete',id=>sharingClient.stickerDelete(id));
-  shareHandle('stickerMarks',query=>sharingClient.stickerMarks(query));
-  shareHandle('stickerPlace',(id,options)=>sharingClient.stickerPlace(id,options));
-  shareHandle('stickerUnplace',id=>sharingClient.stickerUnplace(id));
   shareHandle('requestOtp',email=>sharingClient.requestOtp(email));
   shareHandle('verifyOtp',(email,code)=>sharingClient.verifyOtp(email,code));
   shareHandle('signOut',()=>sharingClient.signOut());
