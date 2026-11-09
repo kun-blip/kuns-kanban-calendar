@@ -1,8 +1,8 @@
 {
   "name": "kuuns-kanban-calendar",
   "productName": "쿤스 칸반 캘린더",
-  "version": "1.9.20",
-  "description": "로컬 저장 기반 Windows/macOS 작업 캘린더 및 선택 일정 공유",
+  "version": "1.9.21",
+  "description": "계정 기반 개인 일정 동기화 및 동료 일정 공유를 지원하는 Windows/macOS 칸반 캘린더",
   "private": true,
   "main": "desktop/main.cjs",
   "author": "KUN'S KANBAN CALENDAR",

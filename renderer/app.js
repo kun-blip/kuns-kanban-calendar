@@ -57,7 +57,7 @@ function normalizedShortcuts(value){
  return result;
 }
 const PLATFORM=DESKTOP?.platform==='darwin'?'macOS':'Windows';
-let data,toastTimer=null;try{const stored=DESKTOP?DESKTOP.readData():localStorage.getItem(KEY);if(stored){const parsed=JSON.parse(stored);data={version:11,theme:parsed.theme==='dark'?'dark':'light',widgetCalendarMode:parsed.widgetCalendarMode==='week'?'week':'month',calendarMode:parsed.calendarMode==='week'?'week':'month',weekStart:parsed.weekStart===1?1:0,notificationsEnabled:parsed.notificationsEnabled!==false,recentColors:(Array.isArray(parsed.recentColors)?parsed.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS),todos:(Array.isArray(parsed.todos)?parsed.todos:[]).map(cleanTodo).filter(Boolean),events:(Array.isArray(parsed.events)?parsed.events:[]).map(cleanEvent).filter(Boolean),tagLibrary:Array.isArray(parsed.tagLibrary)?TagLibrary.clean(parsed.tagLibrary):null,tagLibraryHidden:parsed.tagLibraryHidden,notes:(Array.isArray(parsed.notes)?parsed.notes:[]).map(cleanNote).filter(Boolean),view:parsed.view==='detail'?'detail':'compact',shortcuts:normalizedShortcuts(parsed.shortcuts),widgetMode:!!parsed.widgetMode,games:(Array.isArray(parsed.games)?parsed.games:defaultGames()).map(cleanGame).filter(Boolean)};}else{data=sampleData();data.tagLibrary=TagLibrary.initial(data.events);if(DESKTOP)DESKTOP.saveData(JSON.stringify(data)).catch(()=>notify('저장에 실패했어요.'));else localStorage.setItem(KEY,JSON.stringify(data));}}catch(e){data=sampleData();notify('저장소를 읽지 못했어요. 백업 파일을 사용해 복원할 수 있어요.');}
+let data,toastTimer=null;try{const stored=DESKTOP?DESKTOP.readData():localStorage.getItem(KEY);if(stored){const parsed=JSON.parse(stored);data={version:11,theme:parsed.theme==='dark'?'dark':'light',widgetCalendarMode:parsed.widgetCalendarMode==='week'?'week':'month',calendarMode:parsed.calendarMode==='week'?'week':'month',weekStart:parsed.weekStart===1?1:0,notificationsEnabled:parsed.notificationsEnabled!==false,recentColors:(Array.isArray(parsed.recentColors)?parsed.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS),todos:(Array.isArray(parsed.todos)?parsed.todos:[]).map(cleanTodo).filter(Boolean),events:(Array.isArray(parsed.events)?parsed.events:[]).map(cleanEvent).filter(Boolean),tagLibrary:Array.isArray(parsed.tagLibrary)?TagLibrary.clean(parsed.tagLibrary):null,tagLibraryHidden:parsed.tagLibraryHidden,notes:(Array.isArray(parsed.notes)?parsed.notes:[]).map(cleanNote).filter(Boolean),view:parsed.view==='detail'?'detail':'compact',shortcuts:normalizedShortcuts(parsed.shortcuts),widgetMode:!!parsed.widgetMode,cloudAccount:parsed.cloudAccount&&typeof parsed.cloudAccount==='object'?parsed.cloudAccount:null,games:(Array.isArray(parsed.games)?parsed.games:defaultGames()).map(cleanGame).filter(Boolean)};}else{data=sampleData();data.tagLibrary=TagLibrary.initial(data.events);if(DESKTOP)DESKTOP.saveData(JSON.stringify(data)).catch(()=>notify('저장에 실패했어요.'));else localStorage.setItem(KEY,JSON.stringify(data));}}catch(e){data=sampleData();notify('저장소를 읽지 못했어요. 백업 파일을 사용해 복원할 수 있어요.');}
   data.tagLibrary=Array.isArray(data.tagLibrary)?TagLibrary.withoutUnusedLegacyPresets(data.tagLibrary,data.events):TagLibrary.initial(data.events);
   data.tagLibraryHidden=Array.isArray(data.tagLibraryHidden)?data.tagLibraryHidden.filter(x=>typeof x==='string'&&x.length<=20):[];
   data.theme=data.theme==='dark'?'dark':'light';data.widgetCalendarMode=data.widgetCalendarMode==='week'?'week':'month';data.notificationsEnabled=data.notificationsEnabled!==false;data.recentColors=(Array.isArray(data.recentColors)?data.recentColors:[]).map(allowedColor).filter(Boolean).slice(0,MAX_RECENT_COLORS);
@@ -76,9 +76,11 @@ function notify(message,duration=3000){const el=$('toast');el.textContent=messag
  async function renderAutostart(){if(!DESKTOP?.getAutostart){$('autostartToggle').hidden=true;return;}try{const r=await DESKTOP.getAutostart();if(r.supported===false){$('autostartToggle').hidden=true;return;}else $('autostartToggle').hidden=false;$('autostartToggle').classList.toggle('is-on',!!r.enabled);$('autostartToggle').setAttribute('aria-pressed',String(!!r.enabled));}catch{$('autostartToggle').classList.remove('is-on');}}
  $('autostartToggle').addEventListener('click',async()=>{if(!DESKTOP?.setAutostart)return;try{const prev=await DESKTOP.getAutostart();const next=await DESKTOP.setAutostart(!prev.enabled);await renderAutostart();notify(next.enabled?PLATFORM+' 시작 시 자동 실행을 켰어요.':PLATFORM+' 시작 시 자동 실행을 껐어요.');}catch{notify('자동 실행 설정을 변경하지 못했어요.');}});
  renderAutostart();
+let accountSync=null;
 function save(){
   try{renderMainTodo();renderWidget();
     const json=JSON.stringify(data);
+    accountSync?.onLocalChange();
     if(DESKTOP){
       $('saveState').textContent='PC에 저장 중…';
       DESKTOP.saveData(json).then(()=>$('saveState').textContent='이 PC의 앱 데이터 폴더에 자동 저장됨')
@@ -92,6 +94,8 @@ function monthWeeks(){if(data.calendarMode==='week')return [parseKey(Planner.wee
 let filters={game:'all',query:''};
 let sharedRemoteEvents=[];
 let sharing=null;
+let sharedOwnedIds=new Set();
+function isSharedTimelineEvent(event){return !!event&&(!!event.sharedId||String(event.id||'').startsWith('shared:')||sharedOwnedIds.has(event.id));}
 function allVisibleEvents(){return data.events.concat(sharedRemoteEvents);}
 function matchingEvents(){
   const term=filters.query.trim().toLocaleLowerCase();
@@ -265,7 +269,7 @@ function makeSegments(weekStart){
   const segs=Planner.expand(allVisibleEvents(),start,end).filter(e=>allowed.has(e.id)).map(e=>{
    const bounds=Planner.timelineBounds(e.start,e.end,start,data.weekStart);
    return bounds?{e,...bounds}:null;
- }).filter(Boolean).sort((a,b)=>a.startIndex-b.startIndex || (b.endIndex-b.startIndex)-(a.endIndex-a.startIndex) || a.e.title.localeCompare(b.e.title));
+ }).filter(Boolean).sort((a,b)=>window.KuunsTimelinePriority.compare(a,b,isSharedTimelineEvent));
  const laneEnds=[];
  for(const segment of segs){let lane=laneEnds.findIndex(v=>v<segment.startIndex);if(lane<0){lane=laneEnds.length;laneEnds.push(segment.endIndex);}else laneEnds[lane]=segment.endIndex;segment.lane=lane;}
  return {segs,lanes:laneEnds.length};
@@ -322,7 +326,7 @@ for(const weekStart of monthWeeks()){
  let lastDragAt=0;const dragUndo=[];function clearDragUndo(){dragUndo.length=0;$('undoTimeline').disabled=true;}
  function selectDate(key){selectedDate=key;month=new Date(parseKey(key).getFullYear(),parseKey(key).getMonth(),1);renderCalendar();}
  function renderDayPanel(){
-  const k=selectedDate,d=parseKey(k),events=Planner.expand(allVisibleEvents(),k,k).filter(e=>matchingEvents().some(f=>f.id===e.id));
+  const k=selectedDate,d=parseKey(k),events=Planner.expand(allVisibleEvents(),k,k).filter(e=>matchingEvents().some(f=>f.id===e.id)).sort((a,b)=>Number(isSharedTimelineEvent(b))-Number(isSharedTimelineEvent(a)));
   $('dayPanelTitle').textContent=`${d.getMonth()+1}월 ${d.getDate()}일 · ${['일','월','화','수','목','금','토'][d.getDay()]}요일`;
   $('dayPanelSummary').textContent=`이날 관련된 작업 ${events.length}개 · 날짜 선택은 한 번 클릭, 일정 추가는 아래 버튼`;
   const list=$('dayEventList');list.replaceChildren();
@@ -887,7 +891,25 @@ window.addEventListener('pointerdown',event=>{
 
 // v1.9.0: encrypted transport through the Electron main process; never upload private calendar data automatically.
 if(DESKTOP?.sharingStatus){
+  accountSync=window.KuunsAccountSync?.createAccountSync({bridge:DESKTOP,getData:()=>data,notify,
+    saveLocal:async()=>{if(DESKTOP?.saveData)await DESKTOP.saveData(JSON.stringify(data));else localStorage.setItem(KEY,JSON.stringify(data));},
+    backup:async()=>{await DESKTOP?.savePreRestore?.();},
+    applyCloud:async payload=>{
+      if(!payload||!Array.isArray(payload.events)||!Array.isArray(payload.notes)||!Array.isArray(payload.todos))throw new Error('계정 일정 형식이 잘못됐어요.');
+      data.events=payload.events.map(cleanEvent).filter(Boolean);data.notes=payload.notes.map(cleanNote).filter(Boolean);
+      data.todos=payload.todos.map(cleanTodo).filter(Boolean);
+      data.tagLibrary=Array.isArray(payload.tagLibrary)?TagLibrary.clean(payload.tagLibrary):TagLibrary.initial(data.events);
+      data.tagLibraryHidden=Array.isArray(payload.tagLibraryHidden)?payload.tagLibraryHidden.filter(x=>typeof x==='string'&&x.length<=20):[];
+      data.games=(Array.isArray(payload.games)?payload.games:defaultGames()).map(cleanGame).filter(Boolean);
+      data.shortcuts=normalizedShortcuts(payload.shortcuts);data.recentColors=(Array.isArray(payload.recentColors)?payload.recentColors:[]).map(allowedColor).slice(0,MAX_RECENT_COLORS);
+      selectedNoteId=data.notes[0]?.id||null;clearDragUndo();
+      updateGameFilter();renderCalendar();renderNotes();renderWidget();renderShortcuts();checkReminders();
+      if(sharing)void sharing.refresh().catch(()=>{});
+    }
+  });
   sharing=window.KuunsSharing.createSharingUI({bridge:DESKTOP,
+    onSessionChange:status=>accountSync?.onAuthChange(status),
+    onSharedOwnIds:ids=>{sharedOwnedIds=new Set(ids);renderCalendar();},
     getEvent:id=>data.events.find(e=>e.id===id),getEvents:()=>data.events,
     onDeleteOwnedEvent:async localId=>{
       // Delete only the matching local entry, preserving every other private item.

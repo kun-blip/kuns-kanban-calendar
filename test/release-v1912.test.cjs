@@ -10,7 +10,7 @@ const notes=require('../desktop/release-notes.json');
 const {extract}=require('../renderer/event-tags.js');
 
 test('v1.9.12 version and lock are consistent; approved patch note is exact',()=>{
-  assert.ok(['1.9.12','1.9.13','1.9.14','1.9.15','1.9.16','1.9.17','1.9.18','1.9.19','1.9.20'].includes(pkg.version));
+  assert.ok(['1.9.12','1.9.13','1.9.14','1.9.15','1.9.16','1.9.17','1.9.18','1.9.19','1.9.20','1.9.21'].includes(pkg.version));
   assert.equal(lock.version,pkg.version);
   assert.equal(lock.packages[''].version,pkg.version);
   assert.deepEqual(notes['1.9.12'],{

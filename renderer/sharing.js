@@ -1,7 +1,7 @@
 'use strict';
-/* v1.9.1 collaboration: only explicitly shared events leave the local PC. */
+/* Shared events use explicit invitations; personal calendar account backups are separate. */
 (function(root){
-  function createSharingUI({bridge,getEvent,getEvents,onRemoteEvents,onOwnedUpdates,onDeleteOwnedEvent,notify}){
+  function createSharingUI({bridge,getEvent,getEvents,onRemoteEvents,onOwnedUpdates,onDeleteOwnedEvent,onSharedOwnIds,onSessionChange,notify}){
     const $=id=>document.getElementById(id);
     const overlay=$('sharingOverlay'), content=$('sharingContent');
     let session={signedIn:false,email:'',userId:null}, rows=[],contacts=[],inbox=[],roles=[];
@@ -75,6 +75,7 @@
     function ownedRow(localId){return rows.find(r=>isMine(r)&&r.local_event_id===localId);}
     function remoteRole(row){return isMine(row)?'owner':(roles.find(r=>r.event_id===row.id && r.user_id===session.userId)?.role || 'viewer');}
     function renderRemote(){
+      onSharedOwnIds?.(rows.filter(isMine).map(r=>r.local_event_id));
       onOwnedUpdates?.(rows.filter(r=>isMine(r)&&!pendingLocalSync.has(r.local_event_id)));
       onRemoteEvents(root.KuunsSharedVisibility.remoteRows(rows,getEvents(),session.userId).map(r=>({
         id:'shared:'+r.id,sharedId:r.id,remoteReadOnly:remoteRole(r)!=='editor',
@@ -97,7 +98,7 @@
       return refreshTask;
     }
     async function performRefresh(){
-      if(!session.signedIn){rows=[];inbox=[];roles=[];contacts=[];onRemoteEvents([]);syncInviteBlueDot();return;}
+      if(!session.signedIn){rows=[];inbox=[];roles=[];contacts=[];onSharedOwnIds?.([]);onRemoteEvents([]);syncInviteBlueDot();return;}
       // An authenticated recipient can explicitly trust a saved sender. This never auto-shares private schedules.
       await bridge.sharingAutoAcceptInvites?.().catch(()=>{});
       const [events,contactsResult,invitesResult,rolesResult]=await Promise.all([
@@ -581,13 +582,13 @@
           hint(content,pending+'으로 보낸 인증번호를 입력하세요.');
           const code=field(content,'6자리 인증번호');code.inputMode='numeric';code.maxLength=8;
           btn(content,'로그인',async()=>{
-            session=await bridge.sharingVerifyOtp(pending,code.value);pending='';await refresh();render();notify('로그인이 완료됐어요.');
+            session=await bridge.sharingVerifyOtp(pending,code.value);pending='';onSessionChange?.(session);await refresh();render();notify('로그인이 완료됐어요.');
           },'btn primary');
         }
         return;
       }
       const account=line(content,'div','로그인: '+session.email,'share-account');
-      btn(account,'로그아웃',async()=>{session=await bridge.sharingSignOut();rows=[];inbox=[];contacts=[];syncInviteBlueDot();onRemoteEvents([]);render();renderEventPicker();});
+      btn(account,'로그아웃',async()=>{session=await bridge.sharingSignOut();rows=[];inbox=[];contacts=[];syncInviteBlueDot();onSessionChange?.(session);onSharedOwnIds?.([]);onRemoteEvents([]);render();renderEventPicker();});
       const r=selectedRow();
       if(r){
         btn(content,'← 초대함 및 연락처 보기',()=>{selectedId=null;render();});
@@ -638,6 +639,7 @@
     });
     async function initialize(){
       session=await bridge.sharingStatus();
+      onSessionChange?.(session);
       if(session.signedIn)try{await refresh();}catch(e){notify('공유 연결 실패: '+e.message);}
       const inv=await bridge.sharingPendingInvite();if(inv)pendingInvite=inv;
       bridge.onSharingInvite?.(code=>{pendingInvite=code;selectedId=null;open();});

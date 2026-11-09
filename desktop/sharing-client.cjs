@@ -43,6 +43,15 @@ function safeUuid(v) {
   return v;
 }
 function validateRole(v){if(!['viewer','editor'].includes(v))throw new Error('유효하지 않은 공유 권한입니다.');return v;}
+function validateAccountSnapshot(payload){
+  if(!payload||typeof payload!=='object'||Array.isArray(payload))throw new Error('계정 일정 데이터 형식이 잘못됐어요.');
+  const fields=['events','notes','todos','tagLibrary','tagLibraryHidden','games','shortcuts','recentColors'];
+  const data=Object.fromEntries(fields.map(key=>[key,payload[key]]));
+  if(!Array.isArray(data.events)||!Array.isArray(data.notes)||!Array.isArray(data.todos)||!Array.isArray(data.games)||!Array.isArray(data.shortcuts))throw new Error('계정 일정 데이터 형식이 잘못됐어요.');
+  const serialized=JSON.stringify(data);
+  if(Buffer.byteLength(serialized,'utf8')>6*1024*1024)throw new Error('계정 동기화 데이터가 6MB를 초과했어요. 이미지가 포함된 아이콘을 정리해 주세요.');
+  return data;
+}
 function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}) {
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url)) throw new Error('Supabase URL is invalid');
   if (!/^sb_publishable_/.test(publishableKey)) throw new Error('Supabase publishable key is missing');
@@ -114,6 +123,29 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
       return publicStatus();
     },
     signOut: async()=>{ const token=session?.access_token;persist(null);if(token)try{await request('/auth/v1/logout',{method:'POST',accessToken:token});}catch{} return publicStatus(); },
+    accountSnapshotGet:async()=>{
+      const userId=session?.user?.id;
+      if(!userId)throw new Error('먼저 이메일로 로그인해 주세요.');
+      const rows=await authorized('/rest/v1/calendar_account_snapshots?select=user_id,payload,revision,updated_at&user_id=eq.'+encodeURIComponent(userId));
+      return Array.isArray(rows)&&rows.length?rows[0]:null;
+    },
+    accountSnapshotCreate:async payload=>{
+      const userId=session?.user?.id;
+      if(!userId)throw new Error('먼저 이메일로 로그인해 주세요.');
+      const normalized=validateAccountSnapshot(payload);
+      const rows=await authorized('/rest/v1/calendar_account_snapshots',{method:'POST',body:{user_id:userId,payload:normalized,revision:1}});
+      if(!Array.isArray(rows)||rows.length!==1)throw new Error('계정 데이터 등록 결과를 확인하지 못했어요.');
+      return rows[0];
+    },
+    accountSnapshotUpdate:async (payload,expectedRevision)=>{
+      const userId=session?.user?.id;
+      if(!userId)throw new Error('먼저 이메일로 로그인해 주세요.');
+      if(!Number.isSafeInteger(expectedRevision)||expectedRevision<1)throw new Error('계정 데이터 버전 정보가 잘못됐어요.');
+      const normalized=validateAccountSnapshot(payload);
+      const rows=await authorized('/rest/v1/calendar_account_snapshots?user_id=eq.'+encodeURIComponent(userId)+'&revision=eq.'+expectedRevision,{method:'PATCH',body:{payload:normalized,revision:expectedRevision+1,updated_at:new Date().toISOString()}});
+      if(!Array.isArray(rows)||rows.length!==1)throw new Error('계정 동기화 충돌: 다른 기기에서 먼저 수정했어요.');
+      return rows[0];
+    },
     list: async()=> {
       const events=await authorized('/rest/v1/shared_events?select=id,owner_id,local_event_id,title,description,start_date,end_date,event_data,revision,updated_at&order=start_date.asc');
       return Array.isArray(events)?events:[];
@@ -210,4 +242,4 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
     normalizeEvent
   };
 }
-module.exports={createSharingClient,validateToken,validateEmail,normalizeEvent};
+module.exports={createSharingClient,validateToken,validateEmail,normalizeEvent,validateAccountSnapshot};

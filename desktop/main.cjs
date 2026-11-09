@@ -307,6 +307,14 @@ function registerIpc() {
     return fn(...args);
   });
   shareHandle('status',()=>sharingClient.publicStatus());
+  // Account snapshot IPC uses the same verified main-frame sender policy as event sharing.
+  const accountHandle=(channel,fn)=>secureHandle('account:'+channel,(_event,...args)=>{
+    if(!sharingClient)throw new Error('계정 저장 서비스를 준비하지 못했습니다.');
+    return fn(...args);
+  });
+  accountHandle('get',()=>sharingClient.accountSnapshotGet());
+  accountHandle('create',payload=>sharingClient.accountSnapshotCreate(payload));
+  accountHandle('update',(payload,revision)=>sharingClient.accountSnapshotUpdate(payload,revision));
   shareHandle('requestOtp',email=>sharingClient.requestOtp(email));
   shareHandle('verifyOtp',(email,code)=>sharingClient.verifyOtp(email,code));
   shareHandle('signOut',()=>sharingClient.signOut());

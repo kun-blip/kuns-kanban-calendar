@@ -12,7 +12,7 @@ const pkg=require('../package.json');
 const lock=require('../package-lock.json');
 
 test('version and lockfile aligned after v1.9.9',()=>{
- assert.match(pkg.version,/^1\.9\.(?:9|10|11|12|13|14|15|16|17|18|19|20)$/);assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);
+ assert.match(pkg.version,/^1\.9\.(?:9|10|11|12|13|14|15|16|17|18|19|20|21)$/);assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);
 });
 test('v1.9.9 patch note wording stays exactly identical to v1.9.8',()=>{
  assert.deepEqual(catalog['1.9.9'],catalog['1.9.8']);

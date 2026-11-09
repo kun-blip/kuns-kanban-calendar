@@ -3,6 +3,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('kuunsDesktop', Object.freeze({
   platform: process.platform,
   sharingStatus:()=>ipcRenderer.invoke('sharing:status'),
+  accountSnapshotGet:()=>ipcRenderer.invoke('account:get'),
+  accountSnapshotCreate:payload=>ipcRenderer.invoke('account:create',payload),
+  accountSnapshotUpdate:(payload,revision)=>ipcRenderer.invoke('account:update',payload,revision),
   sharingRequestOtp:email=>ipcRenderer.invoke('sharing:requestOtp',email),
   sharingVerifyOtp:(email,code)=>ipcRenderer.invoke('sharing:verifyOtp',email,code),
   sharingSignOut:()=>ipcRenderer.invoke('sharing:signOut'),
