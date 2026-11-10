@@ -582,13 +582,22 @@
           hint(content,pending+'으로 보낸 인증번호를 입력하세요.');
           const code=field(content,'6자리 인증번호');code.inputMode='numeric';code.maxLength=8;
           btn(content,'로그인',async()=>{
-            session=await bridge.sharingVerifyOtp(pending,code.value);pending='';onSessionChange?.(session);await refresh();render();notify('로그인이 완료됐어요.');
+            session=await bridge.sharingVerifyOtp(pending,code.value);pending='';
+            // The next window must boot with the newly verified account's separate storage.
+            if(typeof root.location?.reload==='function'){root.location.reload();return;}
+            onSessionChange?.(session);await refresh();render();notify('로그인이 완료됐어요.');
           },'btn primary');
         }
         return;
       }
       const account=line(content,'div','로그인: '+session.email,'share-account');
-      btn(account,'로그아웃',async()=>{session=await bridge.sharingSignOut();rows=[];inbox=[];contacts=[];syncInviteBlueDot();onSessionChange?.(session);onSharedOwnIds?.([]);onRemoteEvents([]);render();renderEventPicker();});
+      btn(account,'로그아웃',async()=>{
+        session=await bridge.sharingSignOut();
+        // Purge account-only UI state by reloading the guest profile. Never reuse
+        // the previous account's in-memory calendar, pinned notes or todo list.
+        if(typeof root.location?.reload==='function'){root.location.reload();return;}
+        rows=[];inbox=[];contacts=[];syncInviteBlueDot();onSessionChange?.(session);onSharedOwnIds?.([]);onRemoteEvents([]);render();renderEventPicker();
+      });
       const r=selectedRow();
       if(r){
         btn(content,'← 초대함 및 연락처 보기',()=>{selectedId=null;render();});

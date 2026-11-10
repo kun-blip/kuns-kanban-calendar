@@ -2,6 +2,29 @@
 // Sends user-written feedback only. Calendar events, notes, local file paths and
 // machine identifiers are never read by this module or included in the payload.
 const TYPES = new Set(['기능 제안', '버그 신고', '디자인 개선']);
+const MAX_IMAGE_BYTES = 1200000;
+const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+function validateImage(image) {
+  if (!image || typeof image !== 'object' || Array.isArray(image))
+    throw new Error('첨부 이미지 형식을 확인해 주세요.');
+  if (!IMAGE_MIMES.has(image.mimeType) || typeof image.dataBase64 !== 'string' ||
+      image.dataBase64.length > Math.ceil(MAX_IMAGE_BYTES * 4 / 3) + 8 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(image.dataBase64))
+    throw new Error('지원하지 않는 이미지이거나 너무 큰 이미지예요.');
+  const bytes=Buffer.from(image.dataBase64,'base64');
+  if (bytes.length < 32 || bytes.length > MAX_IMAGE_BYTES || bytes.toString('base64') !== image.dataBase64)
+    throw new Error('이미지 크기 또는 인코딩을 확인해 주세요.');
+  const png=bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+  const jpg=bytes[0]===0xff && bytes[1]===0xd8 && bytes[2]===0xff;
+  const webp=bytes.subarray(0,4).toString('ascii')==='RIFF' && bytes.subarray(8,12).toString('ascii')==='WEBP';
+  if (!((image.mimeType==='image/png'&&png)||(image.mimeType==='image/jpeg'&&jpg)||(image.mimeType==='image/webp'&&webp)))
+    throw new Error('첨부 이미지 파일의 내용을 확인해 주세요.');
+  return {
+    filename: image.mimeType==='image/jpeg'?'feedback-screenshot.jpg':image.mimeType==='image/png'?'feedback-screenshot.png':'feedback-screenshot.webp',
+    mimeType:image.mimeType, dataBase64:image.dataBase64
+  };
+}
 
 function validateFeedback(input, version) {
   if (!input || typeof input !== 'object' || Array.isArray(input))
@@ -13,7 +36,9 @@ function validateFeedback(input, version) {
     throw new Error('내용은 3자 이상, 2,000자 이하로 작성해 주세요.');
   if (typeof nickname !== 'string' || nickname.trim().length > 40)
     throw new Error('닉네임은 40자 이내로 작성해 주세요.');
-  return { type, message: message.trim(), nickname: nickname.trim() || '익명', version: String(version), website: '' };
+  const payload={type, message: message.trim(), nickname: nickname.trim() || '익명', version: String(version), website: ''};
+  if (input.image !== undefined && input.image !== null) payload.image=validateImage(input.image);
+  return payload;
 }
 
 function createFeedbackController({ endpoint, version, fetchImpl = globalThis.fetch, now = Date.now, delay = setTimeout, cancelDelay = clearTimeout }) {
@@ -33,7 +58,7 @@ function createFeedbackController({ endpoint, version, fetchImpl = globalThis.fe
 
     busy = true;
     const aborter = new AbortController();
-    const timeout = delay(() => aborter.abort(), 15_000);
+    const timeout = delay(() => aborter.abort(), payload.image ? 30_000 : 15_000);
     try {
       // text/plain is accepted by Apps Script doPost(e), without a browser CORS
       // preflight. This call runs in Electron's main process, not in renderer.
@@ -51,6 +76,10 @@ function createFeedbackController({ endpoint, version, fetchImpl = globalThis.fe
       catch { throw new Error('Apps Script 응답 형식을 확인해 주세요.'); }
       if (!body || body.ok !== true)
         throw new Error(body && typeof body.error === 'string' ? body.error : '접수 실패');
+      // Old Apps Script deployments may return ok while ignoring the image.
+      // Never tell the sender the screenshot was submitted unless Drive saved it.
+      if (payload.image && !(body.imageSaved === true && typeof body.imageUrl === 'string' && /^https:\/\/drive\.google\.com\//.test(body.imageUrl)))
+        return {ok:false,message:'서버가 이미지 저장을 확인하지 않았어요. 텍스트만 접수됐을 수 있으니 중복 전송 전에 시트를 확인해 주세요. (Apps Script 이미지 접수 기능 업데이트 필요)'};
       lastSentAt = now();
       return { ok: true, message: '피드백이 전송되었어요. 감사합니다!' };
     } catch (err) {

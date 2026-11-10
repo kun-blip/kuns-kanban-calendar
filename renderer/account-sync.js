@@ -3,9 +3,12 @@
  * Never silently adopt another PC's local data into an account or replace a local
  * calendar with a cloud snapshot. A revision mismatch blocks further writes. */
 (function(root){
-  const FIELDS=['events','notes','todos','tagLibrary','tagLibraryHidden','games','shortcuts','recentColors'];
+  const FIELDS=['events','notes','todos','tagLibrary','tagLibraryHidden','games','shortcuts','recentColors','timelineLayout','timelineRowPins'];
   function snapshot(data){
-    return Object.fromEntries(FIELDS.map(field=>[field,data?.[field]??(field==='tagLibrary'?[]:[])]));
+    const result=Object.fromEntries(FIELDS.map(field=>[field,data?.[field]??(['timelineLayout','timelineRowPins'].includes(field)?{}:[])]));
+    // Preserve the old snapshot fingerprint until a manual row is actually saved.
+    if(!Object.keys(result.timelineRowPins||{}).length)delete result.timelineRowPins;
+    return result;
   }
   function fingerprint(value){
     const text=JSON.stringify(value);let a=2166136261,b=5381;
@@ -13,7 +16,8 @@
     return `${text.length}:${a.toString(16)}:${b.toString(16)}`;
   }
   function meaningful(data){
-    // Fresh installations contain demo events and the initial welcome memo.
+    // Fresh installations are empty. This legacy check recognizes untouched demo data
+    // from older releases without treating it as a user-authored calendar.
     const events=Array.isArray(data?.events)?data.events:[];
     const notes=Array.isArray(data?.notes)?data.notes:[];
     return events.some(e=>!String(e.title||'').startsWith('예시 ·'))
@@ -32,6 +36,38 @@
       accountButton.className='btn';accountButton.setAttribute('aria-label','계정 일정 동기화');
       const shared=document.getElementById('sharingLaunch');shared?.insertAdjacentElement('afterend',accountButton);
     }
+    // Legacy v1.9.21 and earlier stored every user's data in one global file.
+    // Keep that file unchanged. Adoption is opt-in and requires an authenticated owner.
+    let legacyButton=null;
+    if(bridge.legacyCalendarStatus&&bridge.importLegacyCalendar){
+      legacyButton=document.createElement('button');
+      legacyButton.type='button';legacyButton.className='btn';legacyButton.textContent='이전 PC 데이터 가져오기';
+      legacyButton.title='옛 버전의 PC 일정을 직접 확인하고 현재 로그인 계정으로 옮기기';
+      legacyButton.hidden=true;
+      accountButton.insertAdjacentElement('afterend',legacyButton);
+      legacyButton.addEventListener('click',async()=>{
+        const result=await bridge.legacyCalendarStatus();
+        if(!result?.canImport){
+          notify(result?.reason==='different-owner'?'이전 파일에 다른 계정의 연결 정보가 있어 자동 가져오기를 막았어요.':
+            '현재 계정에 이미 일정 데이터가 있어 자동으로 덮어쓰지 않아요. 이전 파일은 PC에 그대로 보관돼 있어요.',6500);
+          return;
+        }
+        if(!confirm('예전 버전의 PC 저장 데이터를 현재 로그인 계정으로 가져올까요?\n기존 원본 파일은 삭제하지 않고 그대로 보관합니다. 다른 사람이 사용한 데이터라면 취소해 주세요.'))return;
+        try{
+          await bridge.importLegacyCalendar();
+          notify('이전 데이터를 계정 전용 저장소로 복사했어요.');
+          if(typeof root.location?.reload==='function')root.location.reload();
+        }catch(error){notify(error?.message||'이전 데이터를 가져오지 못했어요.',6000);}
+      });
+    }
+    async function refreshLegacyButton(){
+      if(!legacyButton)return;
+      try{const status=await bridge.legacyCalendarStatus();
+        legacyButton.hidden=!(currentUser&&status?.available&&status.reason!=='different-owner');
+        legacyButton.textContent=status?.canImport?'이전 PC 데이터 가져오기':'이전 PC 데이터 보관 중';
+      }
+      catch{legacyButton.hidden=true;}
+    }
     function display(text,detail){accountButton.textContent='☁ '+text;accountButton.title=detail;}
     function meta(){const m=getData()?.cloudAccount;return m&&m.userId===currentUser&&Number.isSafeInteger(m.revision)?m:null;}
     function localHash(){return fingerprint(snapshot(getData()));}
@@ -49,6 +85,7 @@
       if(startingUser!==currentUser)return;
       await storeMeta(row);
       enabled=true;blocked=false;display('동기화됨','내 계정에 모든 개인 일정·메모·할 일 등이 저장됩니다.');
+      void refreshLegacyButton();
       notify('계정에 저장된 일정으로 동기화했어요. 기존 PC 데이터는 백업했어요.');
     }
     async function createRemote(){
@@ -56,6 +93,7 @@
       const row=await bridge.accountSnapshotCreate(snapshot(getData()));
       if(startingUser!==currentUser)return;
       await storeMeta(row);enabled=true;blocked=false;display('동기화됨','계정 데이터 저장 완료');
+      void refreshLegacyButton();
       notify('이 PC의 데이터를 계정에 연결했어요. 다른 기기에서도 로그인하면 볼 수 있어요.');
     }
     async function updateRemote(remote){
@@ -102,11 +140,20 @@
       const serial=++disposed;
       if(uploadTimer){clearTimeout(uploadTimer);uploadTimer=null;}
       nextAttemptAt=0;enabled=false;blocked=false;currentUser=status?.signedIn&&status?.userId?status.userId:'';revision=0;
-      if(!currentUser){display('계정 동기화','일정 공유에서 이메일 로그인 후 사용해 주세요.');return;}
+      if(!currentUser){display('계정 동기화','일정 공유에서 이메일 로그인 후 사용해 주세요.');void refreshLegacyButton();return;}
+      void refreshLegacyButton();
       display('확인 중','계정 데이터가 있는지 확인하고 있어요.');
       try{
         const row=await bridge.accountSnapshotGet();if(serial!==disposed)return;
         const m=meta();
+        // An upgrade from the old shared device file must never silently adopt
+        // a server snapshot before the user chooses what to do with that file.
+        const legacy=await bridge.legacyCalendarStatus?.().catch(()=>null);
+        if(serial!==disposed)return;
+        if(legacy?.canImport && row && !meaningful(getData())){
+          display('이전 데이터 확인','옛 PC 데이터가 보관돼 있어요. 계정 데이터 또는 이전 데이터를 직접 선택해 주세요.');
+          void refreshLegacyButton();return;
+        }
         if(!row){display('연결하기','이 PC 데이터를 계정에 처음 저장하려면 클릭해 주세요.');return;}
         if(m&&m.revision===row.revision){revision=row.revision;enabled=true;display('동기화됨','계정 일정 동기화 중');if(localHash()!==m.hash)schedule();return;}
         if((m&&localHash()===m.hash)||(!m&&!meaningful(getData()))){await pull(row);return;}
@@ -152,6 +199,11 @@
           return;
         }
         if(enabled&&!blocked){await checkRemote(true);return;}
+        const legacy=await bridge.legacyCalendarStatus?.().catch(()=>null);
+        if(legacy?.canImport&&!meaningful(getData())){
+          if(confirm('이 PC에 이전 버전의 일정이 별도 보관돼 있어요. 기존 파일은 그대로 남겨두고 계정에 저장된 데이터부터 불러올까요?'))await pull(remote);
+          return;
+        }
         const choice=await chooseConflictAction();
         if(choice==='cloud'){if(confirm('기존 PC 일정 데이터를 먼저 백업하고 계정 데이터로 교체할까요?'))await pull(remote);}
         else if(choice==='local'){if(confirm('정말 이 PC의 일정으로 계정 데이터를 덮어쓸까요? 다른 기기의 최신 수정 내용이 사라질 수 있어요.'))await updateRemote(remote);}

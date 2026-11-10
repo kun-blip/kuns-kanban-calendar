@@ -9,7 +9,7 @@ const lock=require('../package-lock.json');
 const notes=require('../desktop/release-notes.json');
 const read=(p)=>fs.readFileSync(path.join(root,p),'utf8');
 test('v1.9.20 baseline and subsequent package versions match lockfile',()=>{
-  assert.ok(['1.9.20','1.9.21'].includes(pkg.version));
+  assert.ok(['1.9.20','1.9.21','1.9.22'].includes(pkg.version));
   assert.equal(lock.version,pkg.version);
   assert.equal(lock.packages[''].version,pkg.version);
 });

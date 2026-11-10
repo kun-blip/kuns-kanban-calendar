@@ -34,7 +34,9 @@ test('Blue dots are restricted to update and invitation buttons',()=>{
  assert.match(sharing,/launch\.classList\.toggle\('needs-attention',count>0\)/);
  assert.match(sharing,/const count=session\.signedIn\?inbox\.length:0/);
  assert.match(sharing,/syncInviteBlueDot\(\);\s*renderRemote\(\)/);
- assert.match(sharing,/session=await bridge\.sharingSignOut\(\);rows=\[\];inbox=\[\];contacts=\[\];syncInviteBlueDot\(\)/);
+ assert.match(sharing,/session=await bridge\.sharingSignOut\(\)/);
+ assert.match(sharing,/if\(typeof root\.location\?\.reload==='function'\)\{root\.location\.reload\(\);return;\}/);
+ assert.match(sharing,/rows=\[\];inbox=\[\];contacts=\[\];syncInviteBlueDot\(\)/);
 });
 test('Mac startup checks availability but never starts the Windows auto installer',async()=>{
  const c=macController();assert.equal(c.start().phase,'idle');

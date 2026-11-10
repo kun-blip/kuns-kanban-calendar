@@ -192,7 +192,7 @@ html,body,body *,body *::before,body *::after{cursor:url('./cursor-minimal.png')
 .day-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.day-panel-head strong{font-size:13px;color:#2c3d58}.day-panel-head p{margin:5px 0 0;font-size:11px;color:#8b98ac}
 .day-event-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.day-event{border:1px solid #e6eaf3;border-radius:9px;padding:9px 11px;background:#fff;display:flex;align-items:center;gap:7px;max-width:100%;color:#35445e}.day-event i{height:9px;width:9px;border-radius:3px;flex-shrink:0}.day-event strong{font-size:12px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.day-event small{font-size:10px;color:#92a0b4;white-space:nowrap}.empty-day{font-size:11px;color:#a3aebe;padding:8px}
 .event-block .resize-grip{width:8px;height:100%;align-self:stretch;flex-shrink:0;margin:-1px -7px -1px auto;border-left:1px solid rgba(255,255,255,.48);background:rgba(255,255,255,.1);border-radius:0 5px 5px 0}
-.event-block.dragging{outline:2px solid rgba(51,106,240,.8);outline-offset:2px;opacity:.8;z-index:8}.event-block{touch-action:none}
+.event-block.dragging{outline:2px solid rgba(51,106,240,.8);outline-offset:2px;opacity:.8;z-index:8}.timeline-drop-guide{position:absolute;pointer-events:none;z-index:7;background:rgba(83,103,232,.09);border:2px dashed rgba(119,144,252,.88);border-radius:7px;box-shadow:0 0 0 3px rgba(83,103,232,.08)}.event-block{touch-action:none}
 .recurrence-help{font-size:10px;color:#9ba7b9;margin:-10px 0 15px}
 .widget-mini-month{margin:12px 0 10px;border:1px solid #edf0f8;border-radius:12px;padding:11px;background:#fcfdff}.widget-mini-head{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#50617d;margin-bottom:7px}.widget-mini-head span{font-size:8px;color:#9daac0;letter-spacing:1px}
 .widget-mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.widget-mini-grid .mini-dayhead{font-size:9px;color:#98a5b8;text-align:center;padding:3px}.widget-mini-grid .mini-day{position:relative;height:29px;border-radius:7px;border:0;background:none;font-size:10px;color:#57667c}.mini-day.today{background:#566de8;color:white;font-weight:750}.mini-day.selected:not(.today){background:#e8ecff}.widget-mini-grid .mini-day.has-event:not(.today)::after{content:'';position:absolute;bottom:2px;left:calc(50% - 2px);height:4px;width:4px;background:#6b8be8;border-radius:100%}
@@ -360,6 +360,13 @@ html[data-theme=dark] .update-message{background:#29334d;color:#d6e0f7}
 .feedback-help{font-size:11px;line-height:1.65;color:var(--muted);margin-top:10px}
 .feedback-status{margin-top:13px;font-size:12px;line-height:1.5;min-height:18px;color:var(--sub)}
 .feedback-status.error{color:#cf4565}.feedback-status.success{color:#27876c}
+.feedback-image-drop{margin-top:10px;border:1px dashed var(--line-strong);border-radius:12px;padding:12px;background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.feedback-image-drop:focus-within{border-color:var(--primary)}
+.feedback-image-drop p{margin:0;color:var(--sub);font-size:12px;line-height:1.65}
+.feedback-image-preview{display:flex;align-items:center;gap:12px;margin-top:10px;padding:9px;border-radius:12px;border:1px solid var(--line);background:var(--surface)}
+.feedback-image-preview img{width:120px;height:84px;object-fit:contain;border-radius:8px;background:var(--line)}
+.feedback-image-preview .feedback-preview-text{font-size:12px;color:var(--sub);flex:1}
+.feedback-image-preview[hidden],.feedback-image-drop[hidden]{display:none}
 .feedback-launch{color:var(--primary)}
 @media(max-width:720px){.feedback-launch span{display:none}.feedback-launch{padding:0 10px}}
 
@@ -410,6 +417,11 @@ html[data-theme=dark] .widget-todo-edit,html[data-theme=dark] .widget-todo-save,
 @media(max-width:680px){.week-start-control{margin-right:auto}.week-start-control select{max-width:135px}.main-todo-panel{padding:14px 12px}}
 
 .share-contact-settings{display:flex;flex-wrap:wrap;gap:8px;margin-top:7px}.share-setting{display:flex;align-items:center;gap:5px;font-size:11px;color:#687a91}.share-setting input{accent-color:#5566ef}.share-description{white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Logged-out account view: never expose a previously stored guest profile. */
+.signed-out-desktop .workspace{position:relative}
+.account-signed-out-shield{position:absolute;inset:0;z-index:24;display:flex;align-items:flex-start;justify-content:center;padding:70px 20px;pointer-events:all;background:color-mix(in srgb,var(--surface) 14%,transparent);color:var(--text);font-size:13px;font-weight:720;text-align:center;line-height:1.6}
+.account-signed-out-shield::first-line{font-weight:800}
 </style>
 
 <style>
@@ -538,7 +550,11 @@ html[data-theme=dark] .widget-todo-edit,html[data-theme=dark] .widget-todo-save,
      <div class="feedback-field"><label for="feedbackType">피드백 종류</label><select id="feedbackType" required><option value="기능 제안">기능 추가 제안</option><option value="버그 신고">오류 및 버그 신고</option><option value="디자인 개선">디자인·사용성 개선</option></select></div>
      <div class="feedback-field"><label for="feedbackMessage">내용 *</label><textarea id="feedbackMessage" minlength="3" maxlength="2000" required placeholder="어떤 점을 바꾸면 좋을까요? (3~2,000자)"></textarea></div>
      <div class="feedback-field"><label for="feedbackNickname">이름 또는 닉네임 (선택)</label><input id="feedbackNickname" type="text" maxlength="40" placeholder="입력하지 않으면 익명으로 접수돼요" /></div>
-     <p class="feedback-help">작성한 의견과 닉네임, 앱 버전만 Google Sheets로 전송합니다. 내 일정과 메모는 전송되지 않아요.</p>
+     <div class="feedback-field"><label for="feedbackImageInput">캡처 이미지 (선택 · 1장)</label>
+       <div class="feedback-image-drop" id="feedbackImageDrop"><p>캡처 후 <strong>Ctrl+V</strong>로 붙여넣거나 이미지 파일을 선택하세요.<br>PNG · JPG · WebP · 최대 8MB, 전송 전 자동 압축</p><button type="button" class="btn" id="feedbackImagePick">이미지 선택</button><input id="feedbackImageInput" type="file" accept="image/png,image/jpeg,image/webp" hidden></div>
+       <div class="feedback-image-preview" id="feedbackImagePreview" hidden><img id="feedbackImageThumb" alt="첨부한 캡처 이미지 미리보기"><span class="feedback-preview-text">캡처 이미지 1장이 첨부됐어요.</span><button type="button" class="btn" id="feedbackImageRemove">삭제</button></div>
+     </div>
+     <p class="feedback-help">작성한 의견·닉네임·앱 버전과 직접 첨부한 이미지만 전송을 시도합니다. 이미지 저장 기능이 서버에 설정되지 않았다면 안내 메시지가 표시돼요. 일정·메모는 전송되지 않아요.</p>
      <div id="feedbackStatus" class="feedback-status" role="status" aria-live="polite"></div>
      <div class="update-actions"><button type="button" class="btn" id="feedbackLater">취소</button><button type="submit" class="btn primary" id="feedbackSubmit">피드백 전송</button></div>
    </form>
@@ -722,6 +738,7 @@ html[data-theme=dark] .tag-library-edit{color:#eaf0fa}
 <script src="./shared-event-meta.js"></script>
 <script src="./sharing.js"></script>
 <script src="./timeline-priority.js"></script>
+<script src="./feedback-image.js"></script>
 <script src="./account-sync.js"></script>
 <script src="./app.js"></script>
 <script src="./welcome.js"></script>

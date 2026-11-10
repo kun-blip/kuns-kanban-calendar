@@ -9,9 +9,9 @@ const lock=require('../package-lock.json');
 const notes=require('../desktop/release-notes.json');
 const read=(p)=>fs.readFileSync(path.join(root,p),'utf8');
 test('v1.9.21 package version, lockfile and historical release notes',()=>{
-  assert.equal(pkg.version,'1.9.21');
-  assert.equal(lock.version,'1.9.21');
-  assert.equal(lock.packages[''].version,'1.9.21');
+  assert.ok(['1.9.21','1.9.22'].includes(pkg.version));
+  assert.equal(lock.version,pkg.version);
+  assert.equal(lock.packages[''].version,pkg.version);
   for(const v of ['1.9.20','1.9.19','1.9.18','1.9.17'])assert.ok(notes[v]);
 });
 test('v1.9.21 approved customer support update notes are exact',()=>{

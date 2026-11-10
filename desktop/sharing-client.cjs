@@ -45,9 +45,23 @@ function safeUuid(v) {
 function validateRole(v){if(!['viewer','editor'].includes(v))throw new Error('유효하지 않은 공유 권한입니다.');return v;}
 function validateAccountSnapshot(payload){
   if(!payload||typeof payload!=='object'||Array.isArray(payload))throw new Error('계정 일정 데이터 형식이 잘못됐어요.');
-  const fields=['events','notes','todos','tagLibrary','tagLibraryHidden','games','shortcuts','recentColors'];
+  const fields=['events','notes','todos','tagLibrary','tagLibraryHidden','games','shortcuts','recentColors','timelineLayout','timelineRowPins'];
   const data=Object.fromEntries(fields.map(key=>[key,payload[key]]));
   if(!Array.isArray(data.events)||!Array.isArray(data.notes)||!Array.isArray(data.todos)||!Array.isArray(data.games)||!Array.isArray(data.shortcuts))throw new Error('계정 일정 데이터 형식이 잘못됐어요.');
+  if(!data.timelineLayout||typeof data.timelineLayout!=='object'||Array.isArray(data.timelineLayout))data.timelineLayout={};
+  if(!data.timelineRowPins||typeof data.timelineRowPins!=='object'||Array.isArray(data.timelineRowPins)||!Object.keys(data.timelineRowPins).length)delete data.timelineRowPins;
+  else{
+    const sanitized={};
+    for(const [week,events] of Object.entries(data.timelineRowPins).slice(-105)){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(week)||!events||typeof events!=='object'||Array.isArray(events))continue;
+      const rows={};
+      for(const [eventId,lane] of Object.entries(events).slice(0,125)){
+        if(eventId.length>0&&eventId.length<200&&Number.isInteger(lane)&&lane>=0&&lane<=9)rows[eventId]=lane;
+      }
+      if(Object.keys(rows).length)sanitized[week]=rows;
+    }
+    if(Object.keys(sanitized).length)data.timelineRowPins=sanitized;else delete data.timelineRowPins;
+  }
   const serialized=JSON.stringify(data);
   if(Buffer.byteLength(serialized,'utf8')>6*1024*1024)throw new Error('계정 동기화 데이터가 6MB를 초과했어요. 이미지가 포함된 아이콘을 정리해 주세요.');
   return data;

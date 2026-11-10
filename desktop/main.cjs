@@ -16,6 +16,7 @@ const { shouldShowReleaseNotes, currentNotes } = require('./release-notes-state.
 const releaseNotesCatalog = require('./release-notes.json');
 const { safeExternalUrl } = require('./external-url.cjs');
 const { createSharingClient, validateToken } = require('./sharing-client.cjs');
+const { createAccountProfiles } = require('./account-profiles.cjs');
 const sharingConfig = require('./sharing-config.json');
 const feedbackConfig = require('./feedback-config.json');
 const packageJson = require('../package.json');
@@ -48,6 +49,7 @@ let pendingReleaseNotesVersion = '';
 let releaseNotesStartupError = '';
 let queuedInviteCode = '';
 let sharingClient = null;
+let accountProfiles = null;
 function handleInviteUrl(raw) {
   try {
     const token = validateToken(raw);
@@ -83,9 +85,9 @@ function broadcastUpdate(state) {
 }
 function openUpdatePanel(){focusWindow();if(window && !window.isDestroyed())window.webContents.send('update:open');}
 const userDir = () => app.getPath('userData');
-const dataFile = () => path.join(userDir(), 'calendar-data.json');
+const dataFile = () => accountProfiles ? accountProfiles.dataPath() : path.join(userDir(), 'account-profiles', 'guest', 'calendar-data.json');
 const settingsFile = () => path.join(userDir(), 'settings.json');
-const firedFile = () => path.join(userDir(), 'reminders-fired.json');
+const firedFile = () => accountProfiles ? accountProfiles.reminderPath() : path.join(userDir(), 'reminders-fired.json');
 const welcomeFile = () => path.join(userDir(), 'welcome-complete.json');
 const releaseNotesFile = () => path.join(userDir(), 'release-notes-seen.json');
 function initializeReleaseNotes() {
@@ -121,7 +123,7 @@ function detectWelcomeEligibility() {
   // Capture before renderer initialization creates calendar-data.json.
   return shouldShowWelcome({
     hasMarker: fs.existsSync(welcomeFile()),
-    hasCalendar: fs.existsSync(dataFile()),
+    hasCalendar: fs.existsSync(dataFile()) || !!(accountProfiles&&fs.existsSync(accountProfiles.legacyPath())),
     hasSettings: fs.existsSync(settingsFile()),
     hasReminders: fs.existsSync(firedFile()),
     hasBackups: fs.existsSync(path.join(userDir(), 'auto-backups'))
@@ -129,9 +131,11 @@ function detectWelcomeEligibility() {
 }
 function autoBackupFolder() {
   const configured=loadSettings().backupFolder;
-  return configured && fs.existsSync(configured) && fs.statSync(configured).isDirectory()
+  const root= configured && fs.existsSync(configured) && fs.statSync(configured).isDirectory()
     ? path.join(configured, 'Kuuns-Auto-Backups')
     : path.join(userDir(), 'auto-backups');
+  // Do not mix calendar backups from different signed-in accounts.
+  return path.join(root,'profiles',accountProfiles?.scope()||'guest');
 }
 function backupSnapshot() {
   try {
@@ -316,8 +320,8 @@ function registerIpc() {
   accountHandle('create',payload=>sharingClient.accountSnapshotCreate(payload));
   accountHandle('update',(payload,revision)=>sharingClient.accountSnapshotUpdate(payload,revision));
   shareHandle('requestOtp',email=>sharingClient.requestOtp(email));
-  shareHandle('verifyOtp',(email,code)=>sharingClient.verifyOtp(email,code));
-  shareHandle('signOut',()=>sharingClient.signOut());
+  shareHandle('verifyOtp',async(email,code)=>{await saveQueue.catch(()=>{});return sharingClient.verifyOtp(email,code);});
+  shareHandle('signOut',async()=>{await saveQueue.catch(()=>{});return sharingClient.signOut();});
   shareHandle('list',()=>sharingClient.list());
   shareHandle('publish',(event,revision)=>sharingClient.publish(event,revision));
   shareHandle('invite',id=>sharingClient.invite(id));
@@ -388,24 +392,33 @@ function registerIpc() {
   secureHandle('feedback:submit',(_event,input)=>feedbackController.submit(input));
   secureHandle('settings:getAutostart',()=>({enabled:autostartState(),packaged:app.isPackaged, supported:process.platform==='win32'}));
   secureHandle('settings:setAutostart',(_event,enabled)=>setAutostart(!!enabled));
-  ipcMain.on('calendar:read', event => {
-    if (!isTrustedIpcSender(event)) { event.returnValue = ''; return; }
-    try { event.returnValue = readText(dataFile(), ''); }
-    catch { event.returnValue = ''; }
+  ipcMain.on('calendar:scope',event=>{
+    event.returnValue=isTrustedIpcSender(event)?accountProfiles?.scope()||'guest':'';
   });
-  secureHandle('calendar:save', async (_event, json) => {
+  ipcMain.on('calendar:read',(event,bootScope)=>{
+    if(!isTrustedIpcSender(event)||bootScope!==accountProfiles?.scope()){event.returnValue='';return;}
+    try{event.returnValue=accountProfiles.read(bootScope);}
+    catch{event.returnValue='';}
+  });
+  secureHandle('calendar:save',async (_event,json,bootScope)=>{
     assertPayload(json);
-    // Serialize writes and use atomic rename to prevent a truncated data file.
-    saveQueue = saveQueue.catch(() => {}).then(() => {
-      // Snapshot before edit, so the first saved state of each day remains recoverable.
+    if(bootScope!==accountProfiles.scope())throw new Error('로그인 계정이 바뀌어 저장을 중단했어요.');
+    const target=accountProfiles.dataPath(bootScope);
+    saveQueue=saveQueue.catch(()=>{}).then(()=>{
+      if(bootScope!==accountProfiles.scope())throw new Error('계정이 변경됐어요. 다시 로그인해 주세요.');
       backupSnapshot();
-      atomicWrite(dataFile(), json);
-      backupSnapshot();
-      updateTrayMenu();
+      accountProfiles.write(bootScope,json);
+      backupSnapshot();updateTrayMenu();
     });
     await saveQueue;
     void checkReminders();
-    return { ok: true, path: dataFile() };
+    return {ok:true,path:target};
+  });
+  secureHandle('calendar:legacyStatus',()=>accountProfiles.legacyStatus());
+  secureHandle('calendar:importLegacy',async()=>{
+    await saveQueue.catch(()=>{});
+    const result=accountProfiles.importLegacy();
+    backupSnapshot();return result;
   });
   // Read-only, strictly whitelisted access to daily snapshots.
   secureHandle('backup:listAuto', async () => {
@@ -540,6 +553,7 @@ else {
     if(startingLink)handleInviteUrl(startingLink);
     sharingClient=createSharingClient({url:sharingConfig.url,publishableKey:sharingConfig.publishableKey,
       sessionPath:path.join(app.getPath('userData'),'sharing-auth.json')});
+    accountProfiles=createAccountProfiles({userDir,status:()=>sharingClient.publicStatus()});
     // This local-only app uses native OS notifications; its web page needs no browser permissions.
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);

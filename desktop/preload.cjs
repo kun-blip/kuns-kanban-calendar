@@ -1,5 +1,9 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
+// Capture the verified account scope on first renderer read, when its file URL is loaded.
+// Keep it fixed until the page reloads after login/logout.
+let bootScope=null;
+const getBootScope=()=>{if(bootScope===null)bootScope=ipcRenderer.sendSync('calendar:scope');return bootScope;};
 contextBridge.exposeInMainWorld('kuunsDesktop', Object.freeze({
   platform: process.platform,
   sharingStatus:()=>ipcRenderer.invoke('sharing:status'),
@@ -58,8 +62,11 @@ contextBridge.exposeInMainWorld('kuunsDesktop', Object.freeze({
   onTrayToday:handler=>{if(typeof handler==='function')ipcRenderer.on('tray:today',()=>handler());},
   onNewEventShortcut:handler=>{if(typeof handler==='function')ipcRenderer.on('shortcut:newEvent',()=>handler());},
   onOpenNormalCalendar:handler=>{if(typeof handler==='function')ipcRenderer.on('window:openNormalCalendar',()=>handler());},
-  readData: () => ipcRenderer.sendSync('calendar:read'),
-  saveData: json => ipcRenderer.invoke('calendar:save', json),
+  calendarScope: () => getBootScope(),
+  readData: () => ipcRenderer.sendSync('calendar:read', getBootScope()),
+  saveData: json => ipcRenderer.invoke('calendar:save', json, getBootScope()),
+  legacyCalendarStatus:()=>ipcRenderer.invoke('calendar:legacyStatus'),
+  importLegacyCalendar:()=>ipcRenderer.invoke('calendar:importLegacy'),
   getBackupFolder: () => ipcRenderer.invoke('backup:getFolder'),
   getAutoBackupStatus: () => ipcRenderer.invoke('backup:autoStatus'),
   listAutoBackups: () => ipcRenderer.invoke('backup:listAuto'),
