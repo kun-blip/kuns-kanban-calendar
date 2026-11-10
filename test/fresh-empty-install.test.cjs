@@ -9,15 +9,26 @@ const {shouldShowWelcome}=require('../desktop/welcome-state.cjs');
 const appSource=fs.readFileSync(path.join(__dirname,'../renderer/app.js'),'utf8');
 const root=path.join(__dirname,'..');
 
-function getFreshState(){
-  const match=appSource.match(/const sampleData=\(\)=>\([\s\S]*?\);\nfunction cleanGame\(/);
-  assert.ok(match,'The app initial calendar function must be present');
-  const expression=match[0].slice(0,-'\nfunction cleanGame('.length);
+function getFreshState(source=appSource){
+  // Find the function by stable names rather than OS-specific line endings.
+  // Git for Windows may check out renderer/app.js with CRLF instead of LF.
+  const start=source.indexOf('const sampleData=()=>');
+  const end=start<0?-1:source.indexOf('function cleanGame(',start);
+  assert.ok(start>=0&&end>start,'The app initial calendar function must be present');
+  const expression=source.slice(start,end).trim();
   const context={defaultGames:()=>[{id:'randomdice2',name:'Randomdice2',icon:''}]};
   vm.createContext(context);
   vm.runInContext(expression+'\nglobalThis.initial=sampleData();',context);
   return JSON.parse(JSON.stringify(context.initial));
 }
+
+test('initial calendar extraction works with Windows CRLF checkout',()=>{
+  const source=appSource.replace(/\r?\n/g,'\r\n');
+  const data=getFreshState(source);
+  assert.deepEqual(data.events,[]);
+  assert.deepEqual(data.notes,[]);
+  assert.deepEqual(data.todos,[]);
+});
 
 test('new installs open with zero schedules, notes and daily todos',()=>{
   const data=getFreshState();
