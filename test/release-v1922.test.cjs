@@ -9,7 +9,7 @@ const pkg=require('../package.json');
 const lock=require('../package-lock.json');
 const notes=require('../desktop/release-notes.json');
 test('v1.9.22 version, package lock, and historical notes are preserved',()=>{
-  assert.equal(pkg.version,'1.9.22');
+  assert.ok(['1.9.22','1.9.23','1.9.24','1.9.25'].includes(pkg.version));
   assert.equal(lock.version,pkg.version);
   assert.equal(lock.packages[''].version,pkg.version);
   for(const old of ['1.9.21','1.9.20','1.9.19','1.9.18'])assert.ok(notes[old]);

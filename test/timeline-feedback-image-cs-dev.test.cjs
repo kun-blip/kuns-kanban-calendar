@@ -84,7 +84,7 @@ test('legacy Apps Script response cannot pretend screenshot was saved',async()=>
 test('backend explicitly acknowledges persisted screenshot to mark feedback successful',async()=>{
   let sent;
   const sender=createFeedbackController({endpoint:'https://script.google.com/macros/s/demo/exec',version:'1.9.21',
-    fetchImpl:async(_,options)=>{sent=JSON.parse(options.body);return {ok:true,text:async()=>JSON.stringify({ok:true,imageSaved:true,imageUrl:'https://drive.google.com/file/d/example/view'})};}});
+    fetchImpl:async(_,options)=>{if(options.method==='GET')return {ok:true,text:async()=>JSON.stringify({ok:true,feedbackImageUpload:true})};sent=JSON.parse(options.body);return {ok:true,text:async()=>JSON.stringify({ok:true,imageSaved:true,imageUrl:'https://drive.google.com/file/d/example/view'})};}});
   const result=await sender.submit({type:'버그 신고',message:'캡처도 확인해 주세요',image});
   assert.equal(result.ok,true);
   assert.equal(sent.image.dataBase64,image.dataBase64);
