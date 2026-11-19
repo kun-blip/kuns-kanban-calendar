@@ -10,6 +10,7 @@
     let draft=[], details={members:[],invites:[],history:[]}, seen=new Set(),initialInbox=true;
     let editorHistory={localId:null,loading:false,error:'',members:[],invites:[]};
     let editorHistoryToken=0;
+    let autoAcceptFailureNotified=false;
     const meta=root.KuunsSharedEventMeta;
     // Keep each section's expanded state while inbox/contact lists refresh.
     const foldOpen={legacy:false,shared:false,contacts:false};
@@ -99,8 +100,18 @@
     }
     async function performRefresh(){
       if(!session.signedIn){rows=[];inbox=[];roles=[];contacts=[];onSharedOwnIds?.([]);onRemoteEvents([]);syncInviteBlueDot();return;}
-      // An authenticated recipient can explicitly trust a saved sender. This never auto-shares private schedules.
-      await bridge.sharingAutoAcceptInvites?.().catch(()=>{});
+      // Fallback for invitations created before the server-side trusted-invite trigger.
+      // Never silently swallow a failure: it otherwise looks like trusted invitations were accepted.
+      if(bridge.sharingAutoAcceptInvites){
+        try{
+          const accepted=await bridge.sharingAutoAcceptInvites();
+          if(Number(accepted)>0)notify(`${accepted}건의 신뢰한 동료 초대를 자동 수락했어요.`);
+          autoAcceptFailureNotified=false;
+        }catch(error){
+          if(!autoAcceptFailureNotified)notify('자동 수락 확인 실패: '+(error?.message||'서버 연결을 확인해 주세요.'));
+          autoAcceptFailureNotified=true;
+        }
+      }
       const [events,contactsResult,invitesResult,rolesResult]=await Promise.all([
         bridge.sharingList(),bridge.sharingContactsList(),bridge.sharingInbox(),bridge.sharingMyRoles()
       ]);
@@ -109,7 +120,19 @@
       inbox=Array.isArray(invitesResult)?invitesResult:[];
       roles=Array.isArray(rolesResult)?rolesResult:[];
       syncInviteBlueDot();
-      renderRemote();renderEventPicker();
+      renderRemote();
+      // An owner may keep the event editor open while recipients accept invites.
+      // Refresh the owner-side participant list too; it is otherwise a stale snapshot.
+      if(editorHistory.localId && !editorHistory.loading){
+        const activeRow=ownedRow(editorHistory.localId);
+        if(activeRow){
+          try{
+            const [members,invites]=await Promise.all([bridge.sharingMembers(activeRow.id),bridge.sharingSentInvites(activeRow.id)]);
+            editorHistory={...editorHistory,error:'',members:Array.isArray(members)?members:[],invites:Array.isArray(invites)?invites:[]};
+          }catch(error){editorHistory={...editorHistory,error:error?.message||'초대 이력을 새로고치지 못했어요.'};}
+        }
+      }
+      renderEventPicker();
       if(!initialInbox){const fresh=inbox.filter(i=>!seen.has(i.invite_id));if(fresh.length)notify(`새로운 일정 초대 ${fresh.length}건이 도착했어요! 상단의 일정 공유를 확인하세요.`);}
       inbox.forEach(i=>seen.add(i.invite_id));initialInbox=false;
       if(opened)render();
