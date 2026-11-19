@@ -1,0 +1,9 @@
+project_id = "kuns-kanban-calendar"
+
+# A random server-held dispatch secret is verified in the handler.
+# No browser or desktop client may invoke the dispatcher.
+[functions.slack-regina-dispatch]
+verify_jwt = false
+
+[functions.slack-regina-test]
+verify_jwt = false
