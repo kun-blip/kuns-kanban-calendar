@@ -330,6 +330,8 @@ function registerIpc() {
   shareHandle('leave',id=>sharingClient.leave(id));
   shareHandle('unshare',id=>sharingClient.unshare(id));
   shareHandle('contactsList',()=>sharingClient.contactsList());
+  shareHandle('slackStatus',()=>sharingClient.slackStatus());
+  shareHandle('slackSetOwnerConsent',enabled=>sharingClient.slackSetOwnerConsent(enabled));
   shareHandle('autoAcceptInvites',()=>sharingClient.autoAcceptInvites());
   shareHandle('contactSettings',(id,settings)=>sharingClient.contactSettings(id,settings));
   shareHandle('contactGroupRename',(from,to)=>sharingClient.contactGroupRename(from,to));

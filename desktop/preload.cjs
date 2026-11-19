@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('kuunsDesktop', Object.freeze({
   sharingLeave:id=>ipcRenderer.invoke('sharing:leave',id),
   sharingUnshare:id=>ipcRenderer.invoke('sharing:unshare',id),
   sharingContactsList:()=>ipcRenderer.invoke('sharing:contactsList'),
+  slackIntegrationStatus:()=>ipcRenderer.invoke('sharing:slackStatus'),
+  slackSetOwnerConsent:enabled=>ipcRenderer.invoke('sharing:slackSetOwnerConsent',enabled),
   sharingAutoAcceptInvites:()=>ipcRenderer.invoke('sharing:autoAcceptInvites'),
   sharingContactSettings:(id,settings)=>ipcRenderer.invoke('sharing:contactSettings',id,settings),
   sharingContactGroupRename:(from,to)=>ipcRenderer.invoke('sharing:contactGroupRename',from,to),
