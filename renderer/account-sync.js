@@ -41,10 +41,12 @@
     let legacyButton=null;
     if(bridge.legacyCalendarStatus&&bridge.importLegacyCalendar){
       legacyButton=document.createElement('button');
-      legacyButton.type='button';legacyButton.className='btn';legacyButton.textContent='이전 PC 데이터 가져오기';
+      legacyButton.type='button';legacyButton.className='btn menu-item';legacyButton.textContent='이전 PC 데이터 가져오기';
       legacyButton.title='옛 버전의 PC 일정을 직접 확인하고 현재 로그인 계정으로 옮기기';
       legacyButton.hidden=true;
-      accountButton.insertAdjacentElement('afterend',legacyButton);
+      const menu=document.getElementById('backupMenuPanel');
+      if(menu)menu.appendChild(legacyButton);else accountButton.insertAdjacentElement('afterend',legacyButton);
+      legacyButton.addEventListener('click',()=>document.getElementById('backupMenuToggle')?.click());
       legacyButton.addEventListener('click',async()=>{
         const result=await bridge.legacyCalendarStatus();
         if(!result?.canImport){

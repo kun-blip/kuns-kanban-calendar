@@ -7,7 +7,7 @@ const pkg=require('../package.json');
 const lock=require('../package-lock.json');
 const notes=require('../desktop/release-notes.json');
 test('v1.9.18 package and lockfile version match',()=>{
-  assert.ok(['1.9.18','1.9.19','1.9.20','1.9.21','1.9.22'].includes(pkg.version));
+  assert.ok(['1.9.18','1.9.19','1.9.20','1.9.21','1.9.22','1.9.23','1.9.24','1.9.25'].includes(pkg.version));
   assert.equal(lock.version,pkg.version);
   assert.equal(lock.packages[''].version,pkg.version);
 });

@@ -243,7 +243,9 @@ function closeBackupMenu(){backupMenuWrap.classList.remove('open');$('backupMenu
 function toggleBackupMenu(force){const open=typeof force==='boolean'?force:$('backupMenuPanel').hidden;backupMenuWrap.classList.toggle('open',open);$('backupMenuPanel').hidden=!open;$('backupMenuToggle').setAttribute('aria-expanded',String(open));}
 $('backupMenuToggle').addEventListener('click',e=>{e.stopPropagation();toggleBackupMenu();});
 document.addEventListener('click',e=>{if(!backupMenuWrap.contains(e.target))closeBackupMenu();});
-['backupFolderBtn','exportBtn','importBtn'].forEach(id=>$(id).addEventListener('click',()=>setTimeout(closeBackupMenu,0)));
+$('backupMenuPanel').querySelectorAll('.menu-item').forEach(item=>item.addEventListener('click',()=>setTimeout(closeBackupMenu,0)));
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('backupMenuPanel').hidden)closeBackupMenu();});
+if(typeof MutationObserver==='function'){const updateItem=$('updateLaunch');const observer=new MutationObserver(()=>{$('backupMenuToggle').classList.toggle('needs-attention',!updateItem.hidden&&updateItem.classList.contains('needs-attention'));});observer.observe(updateItem,{attributes:true,attributeFilter:['hidden','class']});}
 $('widgetAddEvent').addEventListener('click',()=>openEvent(null,todayKey));
 $('widgetTodayFull').addEventListener('click',()=>{updateToday();month=new Date(today.getFullYear(),today.getMonth(),1);selectedDate=todayKey;setWidgetMode(false);renderCalendar();});
 function renderShortcuts(){

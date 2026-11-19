@@ -60,6 +60,21 @@ function createFeedbackController({ endpoint, version, fetchImpl = globalThis.fe
     const aborter = new AbortController();
     const timeout = delay(() => aborter.abort(), payload.image ? 30_000 : 15_000);
     try {
+      // Before sending an image, make sure the deployed receiver can actually
+      // save screenshots. Legacy text-only GAS deployments used to append the
+      // text row and then report success, causing ambiguous duplicate retries.
+      if(payload.image){
+        const capabilityUrl=new URL(url.toString());
+        capabilityUrl.searchParams.set('capability','feedback-image-v1');
+        const probe=await fetchImpl(capabilityUrl.toString(),{
+          method:'GET',redirect:'follow',signal:aborter.signal
+        });
+        let capabilities=null;
+        if(probe.ok){try{capabilities=JSON.parse(await probe.text());}catch{/* old receiver */}}
+        if(capabilities?.feedbackImageUpload!==true){
+          return {ok:false,message:'현재 피드백 접수 서버에 이미지 저장 기능이 적용되지 않았어요. 관리자가 Apps Script 이미지 접수 버전을 배포해야 해요. 이미지와 텍스트는 전송하지 않았습니다.'};
+        }
+      }
       // text/plain is accepted by Apps Script doPost(e), without a browser CORS
       // preflight. This call runs in Electron's main process, not in renderer.
       const response = await fetchImpl(url.toString(), {
@@ -86,7 +101,12 @@ function createFeedbackController({ endpoint, version, fetchImpl = globalThis.fe
       // A network failure can happen after the server has appended the row.
       // Do not claim success; advise checking the sheet before resubmitting.
       console.warn('Feedback send failed:', err.message);
-      return { ok: false, message: '전송 결과를 확인하지 못했어요. 시트 접수 여부와 인터넷 연결을 확인한 뒤 다시 시도해 주세요.' };
+      const hint=/Apps Script 응답 형식/.test(err.message)
+        ? '피드백 서버가 올바른 응답을 보내지 않았어요. Google Apps Script의 배포 설정을 확인해 주세요.'
+        : /이미지 저장 폴더|피드백 시트|이미지 인코딩|첨부 이미지/.test(err.message)
+          ? '피드백 이미지 접수 서버 설정을 확인해 주세요. 관리자에게 이미지 저장 폴더와 시트 연결을 확인하도록 알려주세요.'
+          : '전송 결과를 확인하지 못했어요. 시트 접수 여부와 인터넷 연결을 확인한 뒤 다시 시도해 주세요.';
+      return {ok:false,message:hint};
     } finally {
       cancelDelay(timeout);
       busy = false;

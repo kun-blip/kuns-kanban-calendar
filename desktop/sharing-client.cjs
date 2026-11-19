@@ -197,6 +197,9 @@ function createSharingClient({url, publishableKey, sessionPath, fetchImpl=fetch}
     },
     unshare:async eventId=>authorized('/rest/v1/shared_events?id=eq.'+encodeURIComponent(eventId),{method:'DELETE'}),
     contactsList:()=>authorized('/rest/v1/sharing_contacts?select=id,nickname,email,group_name,auto_accept,auto_invite&order=nickname.asc'),
+    slackStatus:()=>authorized('/rest/v1/rpc/slack_integration_status',{method:'POST',body:{}}),
+    slackSetOwnerConsent:enabled=>authorized('/rest/v1/rpc/slack_set_owner_consent',
+      {method:'POST',body:{p_enabled:enabled===true}}),
     autoAcceptInvites:()=>authorized('/rest/v1/rpc/sharing_accept_trusted_invites',{method:'POST',body:{}}),
     contactAdd:async (nickname,email,groupName='')=>{
       nickname=String(nickname||'').trim().slice(0,60);email=validateEmail(email);
